@@ -1,0 +1,12 @@
+export const DAYS_OF_WEEK = [
+  "Sunday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+] as const;
+
+export const MIN_RATING = 1;
+export const MAX_RATING = 5;
