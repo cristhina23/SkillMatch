@@ -5,12 +5,9 @@
  * duplicating the underlying checks.
  */
 
-export class ValidationError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "ValidationError";
-  }
-}
+import { ConvexError } from "convex/values";
+
+export class ValidationError extends ConvexError<string> {}
 
 export function assertMinuteRange(startMinutes: number, endMinutes: number) {
   if (
@@ -27,6 +24,14 @@ export function assertMinuteRange(startMinutes: number, endMinutes: number) {
 export function assertDayOfWeek(dayOfWeek: number) {
   if (!Number.isInteger(dayOfWeek) || dayOfWeek < 0 || dayOfWeek > 6) {
     throw new ValidationError("dayOfWeek must be an integer between 0 and 6");
+  }
+}
+
+export function assertTimezone(timezone: string) {
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: timezone });
+  } catch {
+    throw new ValidationError(`"${timezone}" is not a valid IANA timezone`);
   }
 }
 
