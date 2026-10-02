@@ -11,6 +11,8 @@
 import type * as lib_auth from "../lib/auth.js";
 import type * as lib_authorization from "../lib/authorization.js";
 import type * as lib_validation from "../lib/validation.js";
+import type * as matching_mutations from "../matching/mutations.js";
+import type * as matching_queries from "../matching/queries.js";
 import type * as skills_mutations from "../skills/mutations.js";
 import type * as skills_queries from "../skills/queries.js";
 import type * as userSkills_mutations from "../userSkills/mutations.js";
@@ -28,6 +30,8 @@ declare const fullApi: ApiFromModules<{
   "lib/auth": typeof lib_auth;
   "lib/authorization": typeof lib_authorization;
   "lib/validation": typeof lib_validation;
+  "matching/mutations": typeof matching_mutations;
+  "matching/queries": typeof matching_queries;
   "skills/mutations": typeof skills_mutations;
   "skills/queries": typeof skills_queries;
   "userSkills/mutations": typeof userSkills_mutations;
