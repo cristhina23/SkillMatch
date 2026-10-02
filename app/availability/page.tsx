@@ -1,28 +1,33 @@
 "use client";
 
-import { Authenticated, AuthLoading, useQuery } from "convex/react";
+import { useQuery } from "convex/react";
 import Link from "next/link";
 import { api } from "@/convex/_generated/api";
 import { AvailabilityEditor } from "@/components/availability/AvailabilityEditor";
-import { AvailabilityWeek } from "@/components/availability/AvailabilityWeek";
+import { AppShell } from "@/components/layout/AppShell";
+import { RequireConvexAuth } from "@/components/layout/RequireConvexAuth";
+import { WeekView } from "@/components/sessions/WeekView";
+import { LoadingState } from "@/components/ui/LoadingState";
 
 export default function AvailabilityPage() {
   return (
-    <main className="mx-auto w-full max-w-4xl flex-1 space-y-8 px-4 py-10">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Availability</h1>
-        <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+    <AppShell>
+      <section>
+        <p className="text-sm font-medium text-zinc-500">Availability</p>
+        <h1 className="mt-1 text-3xl font-bold tracking-tight text-zinc-900">
+          When are you free?
+        </h1>
+        <p className="mt-2 text-zinc-600">
           The hours you&apos;re usually free each week. Sessions can only be
           scheduled inside these times.
         </p>
+      </section>
+      <div className="mt-8">
+        <RequireConvexAuth>
+          <AvailabilityContent />
+        </RequireConvexAuth>
       </div>
-      <AuthLoading>
-        <p className="text-sm text-zinc-500">Loading…</p>
-      </AuthLoading>
-      <Authenticated>
-        <AvailabilityContent />
-      </Authenticated>
-    </main>
+    </AppShell>
   );
 }
 
@@ -30,12 +35,12 @@ function AvailabilityContent() {
   const availability = useQuery(api.availability.queries.getAvailability);
 
   if (availability === undefined) {
-    return <p className="text-sm text-zinc-500">Loading…</p>;
+    return <LoadingState />;
   }
 
   if (availability === null) {
     return (
-      <p className="text-sm">
+      <p className="text-sm text-zinc-600">
         Finish setting up your profile before adding availability.{" "}
         <Link href="/onboarding" className="underline">
           Go to onboarding
@@ -45,17 +50,15 @@ function AvailabilityContent() {
   }
 
   return (
-    <>
+    <div className="space-y-10">
+      <AvailabilityEditor
+        windows={availability.windows}
+        timezone={availability.timezone}
+      />
       <section>
-        <AvailabilityEditor
-          windows={availability.windows}
-          timezone={availability.timezone}
-        />
+        <h2 className="mb-4 text-xl font-bold text-zinc-900">Your week</h2>
+        <WeekView windows={availability.windows.filter((w) => w.isActive)} />
       </section>
-      <section className="space-y-3">
-        <h2 className="text-lg font-semibold">Your week</h2>
-        <AvailabilityWeek windows={availability.windows} />
-      </section>
-    </>
+    </div>
   );
 }

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import type { Doc } from "@/convex/_generated/dataModel";
 import { Button } from "@/components/ui/Button";
 import { WeekCalendar, type CalendarEvent } from "@/components/sessions/WeekCalendar";
 import {
@@ -10,30 +9,47 @@ import {
   formatInTimezone,
   getBrowserTimezone,
   startOfZonedWeek,
+  type RecurringWindow,
 } from "@/lib/utils/time";
 
-interface AvailabilityWeekProps {
-  windows: Doc<"availability">[];
+interface WeekViewSession {
+  _id: string;
+  startTime: number;
+  endTime: number;
+  label: string;
 }
 
-export function AvailabilityWeek({ windows }: AvailabilityWeekProps) {
+interface WeekViewProps {
+  windows?: RecurringWindow[];
+  sessions?: WeekViewSession[];
+}
+
+export function WeekView({ windows = [], sessions = [] }: WeekViewProps) {
   const [timeZone] = useState(getBrowserTimezone);
   const [weekStart, setWeekStart] = useState(() =>
     startOfZonedWeek(Date.now(), timeZone),
   );
   const weekEnd = addZonedDays(weekStart, 7, timeZone);
 
-  const events: CalendarEvent[] = windows
-    .filter((window) => window.isActive)
-    .flatMap((window) =>
+  const events: CalendarEvent[] = [
+    ...windows.flatMap((window, index) =>
       expandRecurringWindow(window, weekStart, weekEnd).map((occurrence) => ({
-        id: `${window._id}-${occurrence.start}`,
+        id: `window-${index}-${occurrence.start}`,
         start: occurrence.start,
         end: occurrence.end,
         label: "Available",
         variant: "availability" as const,
       })),
-    );
+    ),
+    ...sessions.map((session) => ({
+      id: session._id,
+      start: session.startTime,
+      end: session.endTime,
+      label: session.label,
+      variant: "session" as const,
+      href: `/session/${session._id}`,
+    })),
+  ];
 
   return (
     <div className="space-y-3">

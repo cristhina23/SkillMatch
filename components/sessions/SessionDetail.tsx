@@ -1,10 +1,10 @@
 "use client";
 
 import { useQuery } from "convex/react";
-import Link from "next/link";
 import { useState } from "react";
 import { api } from "@/convex/_generated/api";
 import { Button } from "@/components/ui/Button";
+import { LoadingState } from "@/components/ui/LoadingState";
 import { SessionStatusBadge } from "@/components/sessions/SessionStatusBadge";
 import { formatInTimezone, getBrowserTimezone } from "@/lib/utils/time";
 
@@ -30,20 +30,17 @@ export function SessionDetail({ sessionId }: { sessionId: string }) {
   const [viewerTimezone] = useState(getBrowserTimezone);
 
   if (session === undefined) {
-    return <p className="text-sm text-zinc-500">Loading…</p>;
+    return <LoadingState />;
   }
 
   if (session === null) {
     return (
       <div className="space-y-2">
-        <h1 className="text-2xl font-semibold tracking-tight">Session not found</h1>
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">
+        <h1 className="text-2xl font-bold text-zinc-900">Session not found</h1>
+        <p className="text-sm text-zinc-600">
           This session doesn&apos;t exist or you aren&apos;t one of its
           participants.
         </p>
-        <Link href="/dashboard" className="text-sm underline">
-          Back to dashboard
-        </Link>
       </div>
     );
   }
@@ -56,16 +53,16 @@ export function SessionDetail({ sessionId }: { sessionId: string }) {
     <div className="space-y-8">
       <div className="space-y-2">
         <SessionStatusBadge status={session.status} />
-        <h1 className="text-2xl font-semibold tracking-tight">
+        <h1 className="text-3xl font-bold tracking-tight text-zinc-900">
           {session.skill?.name ?? "Learning session"}
         </h1>
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">
+        <p className="text-sm text-zinc-600">
           {session.viewerRole === "TEACHER" ? "You're teaching" : "You're learning from"}{" "}
           {otherPerson?.name ?? "a former member"}
         </p>
       </div>
 
-      <dl className="grid gap-4 rounded-md border border-zinc-200 p-4 text-sm sm:grid-cols-2 dark:border-zinc-800">
+      <dl className="grid gap-4 rounded-xl border border-zinc-200 bg-white p-5 text-sm text-zinc-900 shadow-sm sm:grid-cols-2">
         <div>
           <dt className="text-zinc-500">Date</dt>
           <dd className="font-medium">
@@ -96,8 +93,8 @@ export function SessionDetail({ sessionId }: { sessionId: string }) {
         </div>
       </dl>
 
-      <section className="flex flex-col items-center gap-3 rounded-md border border-dashed border-zinc-300 px-4 py-12 text-center dark:border-zinc-700">
-        <h2 className="font-semibold">Video call</h2>
+      <section className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-zinc-300 bg-white px-4 py-12 text-center">
+        <h2 className="font-semibold text-zinc-900">Video call</h2>
         <p className="max-w-sm text-sm text-zinc-500">
           The video call will open here when the session starts.
         </p>

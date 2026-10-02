@@ -16,7 +16,7 @@ interface AvailabilityEditorProps {
 }
 
 const INPUT_CLASSES =
-  "rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900";
+  "rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900";
 
 export function AvailabilityEditor({ windows, timezone }: AvailabilityEditorProps) {
   const addAvailability = useMutation(api.availability.mutations.addAvailability);
@@ -75,9 +75,9 @@ export function AvailabilityEditor({ windows, timezone }: AvailabilityEditorProp
     <div className="space-y-6">
       <form
         onSubmit={handleAdd}
-        className="flex flex-wrap items-end gap-3 rounded-md border border-zinc-200 p-4 dark:border-zinc-800"
+        className="flex flex-wrap items-end gap-3 rounded-xl border border-zinc-200 bg-white p-5 shadow-sm"
       >
-        <label className="flex flex-col gap-1 text-sm">
+        <label className="flex flex-col gap-1 text-sm text-zinc-700">
           Day
           <select
             value={dayOfWeek}
@@ -91,7 +91,7 @@ export function AvailabilityEditor({ windows, timezone }: AvailabilityEditorProp
             ))}
           </select>
         </label>
-        <label className="flex flex-col gap-1 text-sm">
+        <label className="flex flex-col gap-1 text-sm text-zinc-700">
           From
           <input
             type="time"
@@ -100,7 +100,7 @@ export function AvailabilityEditor({ windows, timezone }: AvailabilityEditorProp
             className={INPUT_CLASSES}
           />
         </label>
-        <label className="flex flex-col gap-1 text-sm">
+        <label className="flex flex-col gap-1 text-sm text-zinc-700">
           To
           <input
             type="time"
@@ -118,7 +118,7 @@ export function AvailabilityEditor({ windows, timezone }: AvailabilityEditorProp
       </form>
 
       {error && (
-        <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+        <p role="alert" className="text-sm text-red-600">
           {error}
         </p>
       )}
@@ -132,12 +132,12 @@ export function AvailabilityEditor({ windows, timezone }: AvailabilityEditorProp
         <ul className="space-y-4">
           {days.map((day) => (
             <li key={day.name}>
-              <h3 className="text-sm font-medium">{day.name}</h3>
+              <h3 className="text-sm font-semibold text-zinc-900">{day.name}</h3>
               <ul className="mt-2 space-y-2">
                 {day.windows.map((window) => (
                   <li
                     key={window._id}
-                    className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-zinc-200 px-3 py-2 text-sm dark:border-zinc-800"
+                    className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-900 shadow-sm"
                   >
                     <span className={cn(!window.isActive && "text-zinc-400")}>
                       {formatMinutes(window.startMinutes)} –{" "}
