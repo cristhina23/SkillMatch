@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { cn } from "@/lib/utils/cn";
 import {
   addDays,
@@ -14,6 +15,7 @@ export interface CalendarEvent {
   end: number;
   label: string;
   variant: "availability" | "session";
+  href?: string;
 }
 
 interface WeekCalendarProps {
@@ -27,10 +29,8 @@ interface WeekCalendarProps {
 const HOUR_HEIGHT_PX = 40;
 
 const VARIANT_CLASSES: Record<CalendarEvent["variant"], string> = {
-  availability:
-    "bg-emerald-100 text-emerald-900 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-100 dark:border-emerald-800",
-  session:
-    "bg-zinc-900 text-white border-zinc-900 dark:bg-zinc-100 dark:text-zinc-900 dark:border-zinc-100",
+  availability: "bg-emerald-50 text-emerald-800 border-emerald-200",
+  session: "z-10 bg-zinc-900 text-white border-zinc-900 hover:bg-zinc-700",
 };
 
 interface PlacedEvent {
@@ -72,7 +72,7 @@ export function WeekCalendar({
     const date = addDays(firstDate, i);
     const start = zonedTimeToUtc(date, 0, timeZone);
     const end = zonedTimeToUtc(addDays(date, 1), 0, timeZone);
-    return { date, start, end };
+    return { start, end };
   });
   const hours = Array.from(
     { length: endHour - startHour },
@@ -85,13 +85,13 @@ export function WeekCalendar({
     ((minutes - visibleStart) / 60) * HOUR_HEIGHT_PX;
 
   return (
-    <div className="overflow-x-auto rounded-md border border-zinc-200 dark:border-zinc-800">
+    <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white shadow-sm">
       <div className="min-w-[640px]">
-        <div className="grid grid-cols-[3.5rem_repeat(7,1fr)] border-b border-zinc-200 text-center text-xs dark:border-zinc-800">
+        <div className="grid grid-cols-[3.5rem_repeat(7,1fr)] border-b border-zinc-200 text-center text-xs">
           <div />
           {days.map(({ start }) => (
             <div key={start} className="py-2">
-              <div className="font-medium">
+              <div className="font-medium text-zinc-900">
                 {formatInTimezone(start, timeZone, { weekday: "short" })}
               </div>
               <div className="text-zinc-500">
@@ -120,13 +120,13 @@ export function WeekCalendar({
           {days.map(({ start, end }) => (
             <div
               key={start}
-              className="relative border-l border-zinc-200 dark:border-zinc-800"
+              className="relative border-l border-zinc-200"
               style={{ height: gridHeight }}
             >
               {hours.map((hour) => (
                 <div
                   key={hour}
-                  className="absolute inset-x-0 border-t border-zinc-100 dark:border-zinc-900"
+                  className="absolute inset-x-0 border-t border-zinc-100"
                   style={{ top: toPx(hour * 60) }}
                 />
               ))}
@@ -139,20 +139,35 @@ export function WeekCalendar({
                 .map(({ event, startMinutes, endMinutes }) => {
                   const top = toPx(Math.max(startMinutes, visibleStart));
                   const bottom = toPx(Math.min(endMinutes, visibleEnd));
-                  return (
-                    <div
-                      key={`${event.id}-${start}`}
-                      title={`${event.label}: ${formatMinutes(startMinutes)} – ${formatMinutes(endMinutes)}`}
-                      className={cn(
-                        "absolute inset-x-1 overflow-hidden rounded border px-1 py-0.5 text-[10px] leading-tight",
-                        VARIANT_CLASSES[event.variant],
-                      )}
-                      style={{ top, height: Math.max(bottom - top, 12) }}
-                    >
+                  const className = cn(
+                    "absolute inset-x-1 overflow-hidden rounded border px-1 py-0.5 text-[10px] leading-tight",
+                    VARIANT_CLASSES[event.variant],
+                  );
+                  const style = { top, height: Math.max(bottom - top, 12) };
+                  const title = `${event.label}: ${formatMinutes(startMinutes)} – ${formatMinutes(endMinutes)}`;
+                  const content = (
+                    <>
                       <div className="font-medium">{event.label}</div>
                       <div>
                         {formatMinutes(startMinutes)} – {formatMinutes(endMinutes)}
                       </div>
+                    </>
+                  );
+                  const key = `${event.id}-${start}`;
+
+                  return event.href ? (
+                    <Link
+                      key={key}
+                      href={event.href}
+                      title={title}
+                      className={className}
+                      style={style}
+                    >
+                      {content}
+                    </Link>
+                  ) : (
+                    <div key={key} title={title} className={className} style={style}>
+                      {content}
                     </div>
                   );
                 })}
