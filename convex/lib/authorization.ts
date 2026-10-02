@@ -13,10 +13,11 @@
  * run once against a linked deployment).
  */
 
-export class AuthorizationError extends Error {
+import { ConvexError } from "convex/values";
+
+export class AuthorizationError extends ConvexError<string> {
   constructor(message = "Not authorized") {
     super(message);
-    this.name = "AuthorizationError";
   }
 }
 
