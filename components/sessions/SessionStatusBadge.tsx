@@ -4,24 +4,24 @@ import type { LearningSessionStatus } from "@/lib/types/domain";
 const STATUS_STYLES: Record<LearningSessionStatus, { label: string; className: string }> = {
   SCHEDULED: {
     label: "Scheduled",
-    className: "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-200",
+    className: "bg-blue-100 text-blue-800",
   },
   IN_PROGRESS: {
     label: "In progress",
     className:
-      "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200",
+      "bg-emerald-100 text-emerald-800",
   },
   COMPLETED: {
     label: "Completed",
-    className: "bg-zinc-100 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200",
+    className: "bg-zinc-100 text-zinc-800",
   },
   CANCELLED: {
     label: "Cancelled",
-    className: "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-200",
+    className: "bg-red-100 text-red-800",
   },
   NO_SHOW: {
     label: "No-show",
-    className: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200",
+    className: "bg-amber-100 text-amber-800",
   },
 };
 
