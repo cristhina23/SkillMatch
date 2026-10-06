@@ -1,6 +1,8 @@
 import { v } from "convex/values";
+import type { Id } from "../_generated/dataModel";
 import { mutation } from "../_generated/server";
-import { requireUser } from "../lib/auth";
+import { requireUser, type MutationCtx } from "../lib/auth";
+import { assertParticipant, assertState } from "../lib/authorization";
 import { ValidationError } from "../lib/validation";
 import {
   isWithinAvailability,
@@ -128,5 +130,104 @@ export const scheduleSession = mutation({
     });
 
     return sessionId;
+  },
+});
+
+// Lifecycle: SCHEDULED -> IN_PROGRESS -> COMPLETED, with CANCELLED and
+// NO_SHOW reachable from either active state. COMPLETED, CANCELLED and
+// NO_SHOW are terminal — each mutation lists its allowed source states
+// via assertState, so anything else is rejected server-side.
+
+async function loadParticipantSession(
+  ctx: MutationCtx,
+  sessionId: Id<"learningSessions">,
+  userId: Id<"users">,
+) {
+  const session = await ctx.db.get(sessionId);
+  if (!session) {
+    throw new ValidationError("Session not found");
+  }
+  assertParticipant([session.teacherId, session.learnerId], userId);
+  return session;
+}
+
+export const startSession = mutation({
+  args: { sessionId: v.id("learningSessions") },
+  handler: async (ctx, args) => {
+    const user = await requireUser(ctx);
+    const session = await loadParticipantSession(ctx, args.sessionId, user._id);
+    assertState(session.status, ["SCHEDULED"]);
+
+    const now = Date.now();
+    if (now < session.startTime) {
+      throw new ValidationError("This session hasn't reached its start time yet");
+    }
+    if (now >= session.endTime) {
+      throw new ValidationError("This session's scheduled time has already ended");
+    }
+
+    await ctx.db.patch(session._id, {
+      status: "IN_PROGRESS",
+      startedAt: now,
+      updatedAt: now,
+    });
+    return session._id;
+  },
+});
+
+export const completeSession = mutation({
+  args: { sessionId: v.id("learningSessions") },
+  handler: async (ctx, args) => {
+    const user = await requireUser(ctx);
+    const session = await loadParticipantSession(ctx, args.sessionId, user._id);
+    assertState(session.status, ["IN_PROGRESS"]);
+
+    const now = Date.now();
+    await ctx.db.patch(session._id, {
+      status: "COMPLETED",
+      completedAt: now,
+      updatedAt: now,
+    });
+    return session._id;
+  },
+});
+
+export const cancelSession = mutation({
+  args: { sessionId: v.id("learningSessions") },
+  handler: async (ctx, args) => {
+    const user = await requireUser(ctx);
+    const session = await loadParticipantSession(ctx, args.sessionId, user._id);
+    assertState(session.status, ["SCHEDULED", "IN_PROGRESS"]);
+
+    const now = Date.now();
+    await ctx.db.patch(session._id, {
+      status: "CANCELLED",
+      cancelledAt: now,
+      updatedAt: now,
+    });
+    return session._id;
+  },
+});
+
+// The schema has no field for which participant was absent, so NO_SHOW is
+// a session-level outcome: either participant may record it once the
+// scheduled start has passed (if the session was started, the starter is
+// the one who showed up and can mark the other absent).
+export const markSessionNoShow = mutation({
+  args: { sessionId: v.id("learningSessions") },
+  handler: async (ctx, args) => {
+    const user = await requireUser(ctx);
+    const session = await loadParticipantSession(ctx, args.sessionId, user._id);
+    assertState(session.status, ["SCHEDULED", "IN_PROGRESS"]);
+
+    const now = Date.now();
+    if (now < session.startTime) {
+      throw new ValidationError(
+        "A session can't be marked as a no-show before it starts",
+      );
+    }
+
+    await ctx.db.patch(session._id, { status: "NO_SHOW", updatedAt: now });
+    return session._id;
   },
 });
