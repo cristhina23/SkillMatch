@@ -38,6 +38,26 @@ export async function loadAcceptedExchange(
   return request;
 }
 
+export async function loadParticipantSession(
+  ctx: QueryCtx,
+  sessionId: Id<"learningSessions">,
+  userId: Id<"users">,
+) {
+  const session = await ctx.db.get(sessionId);
+  if (!session) {
+    throw new ValidationError("Session not found");
+  }
+  assertParticipant([session.teacherId, session.learnerId], userId);
+  return session;
+}
+
+export function otherSessionParticipant(
+  session: Doc<"learningSessions">,
+  userId: Id<"users">,
+) {
+  return session.teacherId === userId ? session.learnerId : session.teacherId;
+}
+
 export function otherParticipant(
   request: Doc<"exchangeRequests">,
   userId: Id<"users">,

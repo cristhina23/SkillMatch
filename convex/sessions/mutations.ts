@@ -7,12 +7,105 @@ import {
   MAX_SESSION_MINUTES,
   MIN_SESSION_MINUTES,
 } from "../../lib/utils/scheduling";
+import { getSessionActions } from "../../lib/utils/sessionLifecycle";
 import {
   getActiveWindows,
   getBusyIntervals,
   loadAcceptedExchange,
+  loadParticipantSession,
   otherParticipant,
+  otherSessionParticipant,
 } from "./helpers";
+
+const sessionArgs = { sessionId: v.id("learningSessions") };
+
+// second participant joining an IN_PROGRESS session is a no-op
+export const startSession = mutation({
+  args: sessionArgs,
+  handler: async (ctx, args) => {
+    const user = await requireUser(ctx);
+    const session = await loadParticipantSession(ctx, args.sessionId, user._id);
+    if (session.status === "IN_PROGRESS") {
+      return;
+    }
+    if (!getSessionActions(session, Date.now()).canJoin) {
+      throw new ValidationError("This session can't be joined right now");
+    }
+
+    const now = Date.now();
+    await ctx.db.patch(session._id, {
+      status: "IN_PROGRESS",
+      startedAt: now,
+      updatedAt: now,
+    });
+  },
+});
+
+export const completeSession = mutation({
+  args: sessionArgs,
+  handler: async (ctx, args) => {
+    const user = await requireUser(ctx);
+    const session = await loadParticipantSession(ctx, args.sessionId, user._id);
+    if (!getSessionActions(session, Date.now()).canComplete) {
+      throw new ValidationError("Only a session in progress can be completed");
+    }
+
+    const now = Date.now();
+    await ctx.db.patch(session._id, {
+      status: "COMPLETED",
+      completedAt: now,
+      updatedAt: now,
+    });
+  },
+});
+
+export const cancelSession = mutation({
+  args: sessionArgs,
+  handler: async (ctx, args) => {
+    const user = await requireUser(ctx);
+    const session = await loadParticipantSession(ctx, args.sessionId, user._id);
+    if (!getSessionActions(session, Date.now()).canCancel) {
+      throw new ValidationError("Only an upcoming session can be cancelled");
+    }
+
+    const now = Date.now();
+    await ctx.db.patch(session._id, {
+      status: "CANCELLED",
+      cancelledAt: now,
+      updatedAt: now,
+    });
+
+    const skill = await ctx.db.get(session.skillId);
+    await ctx.db.insert("notifications", {
+      userId: otherSessionParticipant(session, user._id),
+      type: "SESSION_CANCELLED",
+      title: "Session cancelled",
+      message: `${user.name} cancelled your ${skill?.name ?? "learning"} session.`,
+      relatedEntityId: session._id,
+      relatedEntityType: "learningSession",
+      read: false,
+      createdAt: now,
+    });
+  },
+});
+
+export const markNoShow = mutation({
+  args: sessionArgs,
+  handler: async (ctx, args) => {
+    const user = await requireUser(ctx);
+    const session = await loadParticipantSession(ctx, args.sessionId, user._id);
+    if (!getSessionActions(session, Date.now()).canMarkNoShow) {
+      throw new ValidationError(
+        "A session can be marked as a no-show 15 minutes after it was due to start",
+      );
+    }
+
+    await ctx.db.patch(session._id, {
+      status: "NO_SHOW",
+      updatedAt: Date.now(),
+    });
+  },
+});
 
 export const scheduleSession = mutation({
   args: {

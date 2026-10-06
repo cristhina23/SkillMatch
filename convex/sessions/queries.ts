@@ -1,19 +1,38 @@
 import { v } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
-import { query } from "../_generated/server";
-import { getCurrentUser, type QueryCtx } from "../lib/auth";
+import { internalQuery, query } from "../_generated/server";
+import { getCurrentUser, requireUser, type QueryCtx } from "../lib/auth";
+import { ValidationError } from "../lib/validation";
+import { getSessionActions } from "../../lib/utils/sessionLifecycle";
 import {
   getActiveWindows,
   getBusyIntervals,
   getSkillOptions,
   getUserSessions,
   isActiveSession,
+  loadParticipantSession,
   otherParticipant,
   SCHEDULING_WINDOW_DAYS,
   toPublicUser,
 } from "./helpers";
 
 const PAST_SESSIONS_LIMIT = 20;
+
+export const getCallAccess = internalQuery({
+  args: { sessionId: v.id("learningSessions") },
+  handler: async (ctx, args) => {
+    const user = await requireUser(ctx);
+    const session = await loadParticipantSession(ctx, args.sessionId, user._id);
+    if (!getSessionActions(session, Date.now()).canJoin) {
+      throw new ValidationError("This session's call isn't open right now");
+    }
+    return {
+      userId: user._id,
+      userName: user.name,
+      callId: session.streamCallId,
+    };
+  },
+});
 
 async function withDetails(
   ctx: QueryCtx,

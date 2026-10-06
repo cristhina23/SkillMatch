@@ -18,6 +18,7 @@ import type * as matching_queries from "../matching/queries.js";
 import type * as sessions_helpers from "../sessions/helpers.js";
 import type * as sessions_mutations from "../sessions/mutations.js";
 import type * as sessions_queries from "../sessions/queries.js";
+import type * as sessions_stream from "../sessions/stream.js";
 import type * as skills_mutations from "../skills/mutations.js";
 import type * as skills_queries from "../skills/queries.js";
 import type * as userSkills_mutations from "../userSkills/mutations.js";
@@ -42,6 +43,7 @@ declare const fullApi: ApiFromModules<{
   "sessions/helpers": typeof sessions_helpers;
   "sessions/mutations": typeof sessions_mutations;
   "sessions/queries": typeof sessions_queries;
+  "sessions/stream": typeof sessions_stream;
   "skills/mutations": typeof skills_mutations;
   "skills/queries": typeof skills_queries;
   "userSkills/mutations": typeof userSkills_mutations;
