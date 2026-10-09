@@ -10,6 +10,8 @@
 
 import type * as availability_mutations from "../availability/mutations.js";
 import type * as availability_queries from "../availability/queries.js";
+import type * as exchanges_mutations from "../exchanges/mutations.js";
+import type * as exchanges_queries from "../exchanges/queries.js";
 import type * as lib_auth from "../lib/auth.js";
 import type * as lib_authorization from "../lib/authorization.js";
 import type * as lib_validation from "../lib/validation.js";
@@ -39,6 +41,8 @@ import type {
 declare const fullApi: ApiFromModules<{
   "availability/mutations": typeof availability_mutations;
   "availability/queries": typeof availability_queries;
+  "exchanges/mutations": typeof exchanges_mutations;
+  "exchanges/queries": typeof exchanges_queries;
   "lib/auth": typeof lib_auth;
   "lib/authorization": typeof lib_authorization;
   "lib/validation": typeof lib_validation;
