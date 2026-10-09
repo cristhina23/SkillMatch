@@ -2,9 +2,11 @@ interface SkillCardProps {
   name: string;
   level: string;
   type: "TEACH" | "LEARN";
+  onRemove?: () => void;
+  removing?: boolean;
 }
 
-export function SkillCard({ name, level, type }: SkillCardProps) {
+export function SkillCard({ name, level, type, onRemove, removing }: SkillCardProps) {
   const isTeaching = type === "TEACH";
 
   return (
@@ -23,7 +25,20 @@ export function SkillCard({ name, level, type }: SkillCardProps) {
         </span>
       </div>
 
-      <p className="text-sm text-zinc-500">Level: {level}</p>
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm text-zinc-500">Level: {level}</p>
+
+        {onRemove && (
+          <button
+            type="button"
+            onClick={onRemove}
+            disabled={removing}
+            className="text-sm font-medium text-red-600 hover:text-red-700 disabled:opacity-50"
+          >
+            {removing ? "Removing..." : "Remove"}
+          </button>
+        )}
+      </div>
     </div>
   );
 }
