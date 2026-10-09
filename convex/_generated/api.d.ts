@@ -18,6 +18,7 @@ import type * as matching_queries from "../matching/queries.js";
 import type * as notifications_helpers from "../notifications/helpers.js";
 import type * as notifications_mutations from "../notifications/mutations.js";
 import type * as notifications_queries from "../notifications/queries.js";
+import type * as seed from "../seed.js";
 import type * as sessions_helpers from "../sessions/helpers.js";
 import type * as sessions_mutations from "../sessions/mutations.js";
 import type * as sessions_queries from "../sessions/queries.js";
@@ -46,6 +47,7 @@ declare const fullApi: ApiFromModules<{
   "notifications/helpers": typeof notifications_helpers;
   "notifications/mutations": typeof notifications_mutations;
   "notifications/queries": typeof notifications_queries;
+  seed: typeof seed;
   "sessions/helpers": typeof sessions_helpers;
   "sessions/mutations": typeof sessions_mutations;
   "sessions/queries": typeof sessions_queries;
