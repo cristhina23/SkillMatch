@@ -4,6 +4,7 @@ import { mutation } from "../_generated/server";
 import { requireUser, type MutationCtx } from "../lib/auth";
 import { assertParticipant, assertState } from "../lib/authorization";
 import { ValidationError } from "../lib/validation";
+import { createNotification } from "../notifications/helpers";
 import {
   isWithinAvailability,
   MAX_SESSION_MINUTES,
@@ -118,15 +119,13 @@ export const scheduleSession = mutation({
     });
     await ctx.db.patch(sessionId, { streamCallId: `skillmatch_${sessionId}` });
 
-    await ctx.db.insert("notifications", {
+    await createNotification(ctx, {
       userId: otherId,
       type: "SESSION_SCHEDULED",
-      title: "New session scheduled",
+      title: "Session scheduled",
       message: `${user.name} scheduled a ${skill.name} session with you.`,
       relatedEntityId: sessionId,
       relatedEntityType: "learningSession",
-      read: false,
-      createdAt: now,
     });
 
     return sessionId;
@@ -204,6 +203,17 @@ export const cancelSession = mutation({
       status: "CANCELLED",
       cancelledAt: now,
       updatedAt: now,
+    });
+
+    const skill = await ctx.db.get(session.skillId);
+    await createNotification(ctx, {
+      userId:
+        session.teacherId === user._id ? session.learnerId : session.teacherId,
+      type: "SESSION_CANCELLED",
+      title: "Session cancelled",
+      message: `${user.name} cancelled your ${skill?.name ?? "learning"} session.`,
+      relatedEntityId: session._id,
+      relatedEntityType: "learningSession",
     });
     return session._id;
   },
