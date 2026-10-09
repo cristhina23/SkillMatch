@@ -3,12 +3,13 @@
 
 import { useMemo, useState } from "react";
 import { AppShell } from "@/components/layout/AppShell";
+import { MatchList } from "@/components/matching/MatchList";
 import {
-  MatchList,
-  type MatchListItem,
-} from "@/components/matching/MatchList";
+  MatchProfileModal,
+  type MatchProfileDetails,
+} from "@/components/matching/MatchProfileModal";
 
-const demoMatches: MatchListItem[] = [
+const demoMatches: MatchProfileDetails[] = [
   {
     id: "demo-1",
     name: "Sarah Chen",
@@ -16,6 +17,11 @@ const demoMatches: MatchListItem[] = [
     location: "Charlottetown, PE",
     score: 100,
     matchedSkills: ["Photography", "English"],
+    bio: "I enjoy photography and helping others improve their English skills.",
+    teachingSkills: ["Photography", "English"],
+    learningSkills: ["Web Development"],
+    matchReason:
+      "Sarah can share photography and English skills, while you can explore a possible web development exchange.",
   },
   {
     id: "demo-2",
@@ -24,6 +30,11 @@ const demoMatches: MatchListItem[] = [
     location: "Stratford, PE",
     score: 95,
     matchedSkills: ["Web Development"],
+    bio: "I enjoy building websites and learning new creative skills.",
+    teachingSkills: ["Web Development"],
+    learningSkills: ["Photography"],
+    matchReason:
+      "Jordan teaches web development and is interested in learning photography.",
   },
   {
     id: "demo-3",
@@ -31,6 +42,11 @@ const demoMatches: MatchListItem[] = [
     username: "alexmorgan",
     score: 75,
     matchedSkills: ["Graphic Design", "English"],
+    bio: "I like creative projects and exchanging ideas with other learners.",
+    teachingSkills: ["Graphic Design"],
+    learningSkills: ["English"],
+    matchReason:
+      "Alex wants to improve English skills and can share graphic design knowledge.",
   },
 ];
 
@@ -39,7 +55,10 @@ type SortOption = "highest" | "lowest" | "name";
 
 export default function DiscoverPage() {
   const [matches, setMatches] =
-    useState<MatchListItem[]>(demoMatches);
+    useState<MatchProfileDetails[]>(demoMatches);
+
+  const [selectedMatch, setSelectedMatch] =
+    useState<MatchProfileDetails | null>(null);
 
   const [search, setSearch] = useState("");
   const [scoreFilter, setScoreFilter] =
@@ -57,6 +76,8 @@ export default function DiscoverPage() {
           match.username,
           match.location ?? "",
           ...match.matchedSkills,
+          ...(match.teachingSkills ?? []),
+          ...(match.learningSkills ?? []),
         ]
           .join(" ")
           .toLowerCase();
@@ -87,12 +108,18 @@ export default function DiscoverPage() {
     setMatches((current) =>
       current.filter((match) => match.id !== id),
     );
+
+    if (selectedMatch?.id === id) {
+      setSelectedMatch(null);
+    }
   }
 
   function handleViewProfile(id: string) {
-    // Profile navigation will be added when
-    // public user profile routes are available.
-    console.log("View profile:", id);
+    const match = matches.find((item) => item.id === id);
+
+    if (match) {
+      setSelectedMatch(match);
+    }
   }
 
   function clearFilters() {
@@ -262,6 +289,11 @@ export default function DiscoverPage() {
           )}
         </section>
       </div>
+
+      <MatchProfileModal
+        match={selectedMatch}
+        onClose={() => setSelectedMatch(null)}
+      />
     </AppShell>
   );
 }

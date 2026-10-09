@@ -1,3 +1,4 @@
+
 "use client";
 
 interface MatchCardProps {
@@ -57,7 +58,7 @@ export function MatchCard({
 
       {location && (
         <p className="mt-4 text-sm text-zinc-500">
-          📍 {location}
+          Location: {location}
         </p>
       )}
 

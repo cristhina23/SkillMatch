@@ -1,3 +1,4 @@
+
 import { MatchCard } from "./MatchCard";
 import { EmptyState } from "@/components/ui/EmptyState";
 
@@ -45,7 +46,9 @@ export function MatchList({
           score={match.score}
           matchedSkills={match.matchedSkills}
           onDismiss={
-            onDismiss ? () => onDismiss(match.id) : undefined
+            onDismiss
+              ? () => onDismiss(match.id)
+              : undefined
           }
           onViewProfile={
             onViewProfile
