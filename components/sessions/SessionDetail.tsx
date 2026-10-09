@@ -3,8 +3,8 @@
 import { useQuery } from "convex/react";
 import { useState } from "react";
 import { api } from "@/convex/_generated/api";
-import { Button } from "@/components/ui/Button";
 import { LoadingState } from "@/components/ui/LoadingState";
+import { SessionActions } from "@/components/sessions/SessionActions";
 import { SessionStatusBadge } from "@/components/sessions/SessionStatusBadge";
 import { formatInTimezone, getBrowserTimezone } from "@/lib/utils/time";
 
@@ -93,13 +93,7 @@ export function SessionDetail({ sessionId }: { sessionId: string }) {
         </div>
       </dl>
 
-      <section className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-zinc-300 bg-white px-4 py-12 text-center">
-        <h2 className="font-semibold text-zinc-900">Video call</h2>
-        <p className="max-w-sm text-sm text-zinc-500">
-          The video call will open here when the session starts.
-        </p>
-        <Button disabled>Join call</Button>
-      </section>
+      <SessionActions session={session} timeZone={viewerTimezone} />
     </div>
   );
 }
