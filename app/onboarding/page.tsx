@@ -1,25 +1,87 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useConvexAuth, useMutation, useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
 import { Button } from "@/components/ui/Button";
+import { LoadingState } from "@/components/ui/LoadingState";
+import { getErrorMessage } from "@/lib/utils/errors";
+import { getBrowserTimezone } from "@/lib/utils/time";
+
+const LEVELS = ["BEGINNER", "INTERMEDIATE", "ADVANCED", "EXPERT"] as const;
+type Level = (typeof LEVELS)[number];
 
 export default function OnboardingPage() {
   const router = useRouter();
+  const { isAuthenticated } = useConvexAuth();
+  const currentUser = useQuery(api.users.queries.current);
+  const skills = useQuery(api.skills.queries.listActive);
+  const createCurrentUser = useMutation(api.users.mutations.createCurrentUser);
+  const addUserSkill = useMutation(api.userSkills.mutations.addUserSkill);
 
   const [name, setName] = useState("");
   const [username, setUsername] = useState("");
   const [bio, setBio] = useState("");
   const [location, setLocation] = useState("");
   const [teachSkill, setTeachSkill] = useState("");
+  const [teachLevel, setTeachLevel] = useState<Level>("INTERMEDIATE");
   const [learnSkill, setLearnSkill] = useState("");
+  const [learnLevel, setLearnLevel] = useState<Level>("BEGINNER");
+  const [error, setError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  // People who already have a profile don't need onboarding again.
+  useEffect(() => {
+    if (currentUser) {
+      router.replace("/dashboard");
+    }
+  }, [currentUser, router]);
+
+  const skillList = skills ?? [];
+  const hasSkills = skillList.length > 0;
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setError(null);
+    setIsSaving(true);
 
-    // Week 1 frontend only.
-    // Convex profile saving will be connected later.
-    router.push("/dashboard");
+    try {
+      // Safe to call twice: it returns the existing profile instead of
+      // creating a duplicate.
+      await createCurrentUser({
+        name: name.trim(),
+        username: username.trim(),
+        timezone: getBrowserTimezone(),
+        bio: bio.trim() || undefined,
+        location: location.trim() || undefined,
+      });
+
+      if (teachSkill) {
+        await addUserSkill({
+          skillId: teachSkill as Id<"skills">,
+          type: "TEACH",
+          level: teachLevel,
+        });
+      }
+      if (learnSkill) {
+        await addUserSkill({
+          skillId: learnSkill as Id<"skills">,
+          type: "LEARN",
+          level: learnLevel,
+        });
+      }
+
+      router.push("/dashboard");
+    } catch (err) {
+      setError(getErrorMessage(err));
+      setIsSaving(false);
+    }
+  }
+
+  if (!isAuthenticated || currentUser === undefined || currentUser) {
+    return <LoadingState />;
   }
 
   return (
@@ -103,13 +165,17 @@ export default function OnboardingPage() {
               Add a skill that you feel comfortable sharing with someone else.
             </p>
 
-            <input
-              required
-              value={teachSkill}
-              onChange={(event) => setTeachSkill(event.target.value)}
-              placeholder="Example: Photography"
-              className="mt-4 w-full rounded-lg border border-zinc-300 px-3 py-2 outline-none focus:border-zinc-900"
-            />
+            {hasSkills ? (
+              <SkillPicker
+                skills={skillList}
+                skillId={teachSkill}
+                level={teachLevel}
+                onSkillChange={setTeachSkill}
+                onLevelChange={setTeachLevel}
+              />
+            ) : (
+              <NoSkillsMessage loading={skills === undefined} />
+            )}
           </section>
 
           <section className="border-t border-zinc-200 pt-6">
@@ -121,20 +187,86 @@ export default function OnboardingPage() {
               Add something you would like another member to teach you.
             </p>
 
-            <input
-              required
-              value={learnSkill}
-              onChange={(event) => setLearnSkill(event.target.value)}
-              placeholder="Example: Web Development"
-              className="mt-4 w-full rounded-lg border border-zinc-300 px-3 py-2 outline-none focus:border-zinc-900"
-            />
+            {hasSkills ? (
+              <SkillPicker
+                skills={skillList}
+                skillId={learnSkill}
+                level={learnLevel}
+                onSkillChange={setLearnSkill}
+                onLevelChange={setLearnLevel}
+              />
+            ) : (
+              <NoSkillsMessage loading={skills === undefined} />
+            )}
           </section>
 
+          {error && (
+            <p role="alert" className="text-sm text-red-600">
+              {error}
+            </p>
+          )}
+
           <div className="flex justify-end border-t border-zinc-200 pt-6">
-            <Button type="submit">Complete profile</Button>
+            <Button type="submit" disabled={isSaving}>
+              {isSaving ? "Saving..." : "Complete profile"}
+            </Button>
           </div>
         </form>
       </div>
     </main>
+  );
+}
+
+function SkillPicker({
+  skills,
+  skillId,
+  level,
+  onSkillChange,
+  onLevelChange,
+}: {
+  skills: { _id: string; name: string }[];
+  skillId: string;
+  level: Level;
+  onSkillChange: (skillId: string) => void;
+  onLevelChange: (level: Level) => void;
+}) {
+  return (
+    <div className="mt-4 grid gap-4 sm:grid-cols-[2fr_1fr]">
+      <select
+        required
+        value={skillId}
+        onChange={(event) => onSkillChange(event.target.value)}
+        className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 outline-none focus:border-zinc-900"
+      >
+        <option value="">Choose a skill</option>
+        {skills.map((skill) => (
+          <option key={skill._id} value={skill._id}>
+            {skill.name}
+          </option>
+        ))}
+      </select>
+
+      <select
+        value={level}
+        onChange={(event) => onLevelChange(event.target.value as Level)}
+        className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 outline-none focus:border-zinc-900"
+      >
+        {LEVELS.map((option) => (
+          <option key={option} value={option}>
+            {option.charAt(0) + option.slice(1).toLowerCase()}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+function NoSkillsMessage({ loading }: { loading: boolean }) {
+  return (
+    <p className="mt-4 rounded-lg bg-zinc-50 px-3 py-2 text-sm text-zinc-500">
+      {loading
+        ? "Loading skills..."
+        : "No skills are available yet. You can add them once the skill list is ready."}
+    </p>
   );
 }

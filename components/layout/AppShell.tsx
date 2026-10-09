@@ -1,6 +1,7 @@
 import { ReactNode } from "react";
 import { Sidebar } from "./Sidebar";
 import { MobileNav } from "./MobileNav";
+import { ProfileRedirect } from "./ProfileRedirect";
 
 interface AppShellProps {
   children: ReactNode;
@@ -9,6 +10,7 @@ interface AppShellProps {
 export function AppShell({ children }: AppShellProps) {
   return (
     <div className="flex min-h-screen bg-zinc-50">
+      <ProfileRedirect />
       <Sidebar />
 
       <main className="w-full flex-1 pb-20 md:pb-0">

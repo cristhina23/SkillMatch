@@ -2,7 +2,7 @@ import { v } from "convex/values";
 import type { Id } from "../_generated/dataModel";
 import { mutation, type MutationCtx } from "../_generated/server";
 import { requireUser } from "../lib/auth";
-import { assertNonEmptyString } from "../lib/validation";
+import { assertNonEmptyString, ValidationError } from "../lib/validation";
 
 const profileFields = {
   username: v.string(),
@@ -30,7 +30,7 @@ async function assertUsernameAvailable(
     .unique();
 
   if (existing && existing._id !== excludeUserId) {
-    throw new Error(`Username "${username}" is already taken`);
+    throw new ValidationError(`Username "${username}" is already taken`);
   }
 }
 
