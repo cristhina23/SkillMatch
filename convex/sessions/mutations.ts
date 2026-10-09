@@ -1,8 +1,7 @@
 import { v } from "convex/values";
-import type { Id } from "../_generated/dataModel";
 import { mutation } from "../_generated/server";
-import { requireUser, type MutationCtx } from "../lib/auth";
-import { assertParticipant, assertState } from "../lib/authorization";
+import { requireUser } from "../lib/auth";
+import { assertState } from "../lib/authorization";
 import { ValidationError } from "../lib/validation";
 import { createNotification } from "../notifications/helpers";
 import {
@@ -10,7 +9,10 @@ import {
   MAX_SESSION_MINUTES,
   MIN_SESSION_MINUTES,
 } from "../../lib/utils/scheduling";
-import { getSessionActions } from "../../lib/utils/sessionLifecycle";
+import {
+  getSessionActions,
+  NO_SHOW_AFTER_MINUTES,
+} from "../../lib/utils/sessionLifecycle";
 import {
   getActiveWindows,
   getBusyIntervals,
@@ -22,14 +24,21 @@ import {
 
 const sessionArgs = { sessionId: v.id("learningSessions") };
 
+// Lifecycle: SCHEDULED -> IN_PROGRESS -> COMPLETED; CANCELLED (before start)
+// and NO_SHOW (after the grace period) only from SCHEDULED. COMPLETED,
+// CANCELLED and NO_SHOW are terminal. assertState enforces the allowed
+// source states; getSessionActions (shared with SessionActions.tsx) owns
+// the timing windows so the UI and backend can't disagree.
+
 // second participant joining an IN_PROGRESS session is a no-op
 export const startSession = mutation({
   args: sessionArgs,
   handler: async (ctx, args) => {
     const user = await requireUser(ctx);
     const session = await loadParticipantSession(ctx, args.sessionId, user._id);
+    assertState(session.status, ["SCHEDULED", "IN_PROGRESS"]);
     if (session.status === "IN_PROGRESS") {
-      return;
+      return session._id;
     }
     if (!getSessionActions(session, Date.now()).canJoin) {
       throw new ValidationError("This session can't be joined right now");
@@ -41,6 +50,7 @@ export const startSession = mutation({
       startedAt: now,
       updatedAt: now,
     });
+    return session._id;
   },
 });
 
@@ -49,9 +59,7 @@ export const completeSession = mutation({
   handler: async (ctx, args) => {
     const user = await requireUser(ctx);
     const session = await loadParticipantSession(ctx, args.sessionId, user._id);
-    if (!getSessionActions(session, Date.now()).canComplete) {
-      throw new ValidationError("Only a session in progress can be completed");
-    }
+    assertState(session.status, ["IN_PROGRESS"]);
 
     const now = Date.now();
     await ctx.db.patch(session._id, {
@@ -59,6 +67,7 @@ export const completeSession = mutation({
       completedAt: now,
       updatedAt: now,
     });
+    return session._id;
   },
 });
 
@@ -67,6 +76,7 @@ export const cancelSession = mutation({
   handler: async (ctx, args) => {
     const user = await requireUser(ctx);
     const session = await loadParticipantSession(ctx, args.sessionId, user._id);
+    assertState(session.status, ["SCHEDULED"]);
     if (!getSessionActions(session, Date.now()).canCancel) {
       throw new ValidationError("Only an upcoming session can be cancelled");
     }
@@ -79,16 +89,15 @@ export const cancelSession = mutation({
     });
 
     const skill = await ctx.db.get(session.skillId);
-    await ctx.db.insert("notifications", {
+    await createNotification(ctx, {
       userId: otherSessionParticipant(session, user._id),
       type: "SESSION_CANCELLED",
       title: "Session cancelled",
       message: `${user.name} cancelled your ${skill?.name ?? "learning"} session.`,
       relatedEntityId: session._id,
       relatedEntityType: "learningSession",
-      read: false,
-      createdAt: now,
     });
+    return session._id;
   },
 });
 
@@ -97,9 +106,10 @@ export const markNoShow = mutation({
   handler: async (ctx, args) => {
     const user = await requireUser(ctx);
     const session = await loadParticipantSession(ctx, args.sessionId, user._id);
+    assertState(session.status, ["SCHEDULED"]);
     if (!getSessionActions(session, Date.now()).canMarkNoShow) {
       throw new ValidationError(
-        "A session can be marked as a no-show 15 minutes after it was due to start",
+        `A session can be marked as a no-show ${NO_SHOW_AFTER_MINUTES} minutes after it was due to start`,
       );
     }
 
@@ -107,6 +117,7 @@ export const markNoShow = mutation({
       status: "NO_SHOW",
       updatedAt: Date.now(),
     });
+    return session._id;
   },
 });
 
@@ -222,115 +233,5 @@ export const scheduleSession = mutation({
     });
 
     return sessionId;
-  },
-});
-
-// Lifecycle: SCHEDULED -> IN_PROGRESS -> COMPLETED, with CANCELLED and
-// NO_SHOW reachable from either active state. COMPLETED, CANCELLED and
-// NO_SHOW are terminal — each mutation lists its allowed source states
-// via assertState, so anything else is rejected server-side.
-
-async function loadParticipantSession(
-  ctx: MutationCtx,
-  sessionId: Id<"learningSessions">,
-  userId: Id<"users">,
-) {
-  const session = await ctx.db.get(sessionId);
-  if (!session) {
-    throw new ValidationError("Session not found");
-  }
-  assertParticipant([session.teacherId, session.learnerId], userId);
-  return session;
-}
-
-export const startSession = mutation({
-  args: { sessionId: v.id("learningSessions") },
-  handler: async (ctx, args) => {
-    const user = await requireUser(ctx);
-    const session = await loadParticipantSession(ctx, args.sessionId, user._id);
-    assertState(session.status, ["SCHEDULED"]);
-
-    const now = Date.now();
-    if (now < session.startTime) {
-      throw new ValidationError("This session hasn't reached its start time yet");
-    }
-    if (now >= session.endTime) {
-      throw new ValidationError("This session's scheduled time has already ended");
-    }
-
-    await ctx.db.patch(session._id, {
-      status: "IN_PROGRESS",
-      startedAt: now,
-      updatedAt: now,
-    });
-    return session._id;
-  },
-});
-
-export const completeSession = mutation({
-  args: { sessionId: v.id("learningSessions") },
-  handler: async (ctx, args) => {
-    const user = await requireUser(ctx);
-    const session = await loadParticipantSession(ctx, args.sessionId, user._id);
-    assertState(session.status, ["IN_PROGRESS"]);
-
-    const now = Date.now();
-    await ctx.db.patch(session._id, {
-      status: "COMPLETED",
-      completedAt: now,
-      updatedAt: now,
-    });
-    return session._id;
-  },
-});
-
-export const cancelSession = mutation({
-  args: { sessionId: v.id("learningSessions") },
-  handler: async (ctx, args) => {
-    const user = await requireUser(ctx);
-    const session = await loadParticipantSession(ctx, args.sessionId, user._id);
-    assertState(session.status, ["SCHEDULED", "IN_PROGRESS"]);
-
-    const now = Date.now();
-    await ctx.db.patch(session._id, {
-      status: "CANCELLED",
-      cancelledAt: now,
-      updatedAt: now,
-    });
-
-    const skill = await ctx.db.get(session.skillId);
-    await createNotification(ctx, {
-      userId:
-        session.teacherId === user._id ? session.learnerId : session.teacherId,
-      type: "SESSION_CANCELLED",
-      title: "Session cancelled",
-      message: `${user.name} cancelled your ${skill?.name ?? "learning"} session.`,
-      relatedEntityId: session._id,
-      relatedEntityType: "learningSession",
-    });
-    return session._id;
-  },
-});
-
-// The schema has no field for which participant was absent, so NO_SHOW is
-// a session-level outcome: either participant may record it once the
-// scheduled start has passed (if the session was started, the starter is
-// the one who showed up and can mark the other absent).
-export const markSessionNoShow = mutation({
-  args: { sessionId: v.id("learningSessions") },
-  handler: async (ctx, args) => {
-    const user = await requireUser(ctx);
-    const session = await loadParticipantSession(ctx, args.sessionId, user._id);
-    assertState(session.status, ["SCHEDULED", "IN_PROGRESS"]);
-
-    const now = Date.now();
-    if (now < session.startTime) {
-      throw new ValidationError(
-        "A session can't be marked as a no-show before it starts",
-      );
-    }
-
-    await ctx.db.patch(session._id, { status: "NO_SHOW", updatedAt: now });
-    return session._id;
   },
 });
