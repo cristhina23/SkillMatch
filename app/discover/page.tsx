@@ -1,13 +1,15 @@
 
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { MatchList } from "@/components/matching/MatchList";
 import {
   MatchProfileModal,
   type MatchProfileDetails,
+  type MatchModalView,
 } from "@/components/matching/MatchProfileModal";
+import type { ExchangeRequestDraft } from "@/components/matching/ExchangeRequestForm";
 
 const demoMatches: MatchProfileDetails[] = [
   {
@@ -60,6 +62,12 @@ export default function DiscoverPage() {
   const [selectedMatch, setSelectedMatch] =
     useState<MatchProfileDetails | null>(null);
 
+  const [modalView, setModalView] =
+    useState<MatchModalView>("profile");
+
+  const [sentRequestIds, setSentRequestIds] =
+    useState<string[]>([]);
+
   const [search, setSearch] = useState("");
   const [scoreFilter, setScoreFilter] =
     useState<ScoreFilter>("all");
@@ -106,20 +114,65 @@ export default function DiscoverPage() {
 
   function handleDismiss(id: string) {
     setMatches((current) =>
-      current.filter((match) => match.id !== id),
+      current.filter((match) => match.id !== id)
     );
 
     if (selectedMatch?.id === id) {
       setSelectedMatch(null);
+      setModalView("profile");
     }
   }
 
   function handleViewProfile(id: string) {
     const match = matches.find((item) => item.id === id);
 
-    if (match) {
-      setSelectedMatch(match);
+    if (!match) return;
+
+    setSelectedMatch(match);
+    setModalView("profile");
+  }
+
+  const handleCloseModal = useCallback(() => {
+    setSelectedMatch(null);
+    setModalView("profile");
+  }, []);
+
+  function handleStartRequest() {
+    if (!selectedMatch) return;
+
+    if (sentRequestIds.includes(selectedMatch.id)) {
+      return;
     }
+
+    setModalView("request");
+  }
+
+  function handleBackToProfile() {
+    setModalView("profile");
+  }
+
+  function handleSubmitRequest(request: ExchangeRequestDraft) {
+    if (!selectedMatch) return;
+
+    if (request.matchId !== selectedMatch.id) {
+      return;
+    }
+
+    if (sentRequestIds.includes(request.matchId)) {
+      return;
+    }
+
+    // Frontend demo only.
+    // Replace with a Convex mutation after backend
+    // exchange requests are implemented.
+    console.log("Demo exchange request:", request);
+
+    setSentRequestIds((current) => [
+      ...current,
+      request.matchId,
+    ]);
+
+    setModalView("profile");
   }
 
   function clearFilters() {
@@ -130,6 +183,10 @@ export default function DiscoverPage() {
 
   const hasActiveFilters =
     search.trim() !== "" || scoreFilter !== "all";
+
+  const selectedRequestSent = selectedMatch
+    ? sentRequestIds.includes(selectedMatch.id)
+    : false;
 
   return (
     <AppShell>
@@ -292,7 +349,12 @@ export default function DiscoverPage() {
 
       <MatchProfileModal
         match={selectedMatch}
-        onClose={() => setSelectedMatch(null)}
+        view={modalView}
+        requestSent={selectedRequestSent}
+        onClose={handleCloseModal}
+        onStartRequest={handleStartRequest}
+        onBackToProfile={handleBackToProfile}
+        onSubmitRequest={handleSubmitRequest}
       />
     </AppShell>
   );
