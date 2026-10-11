@@ -5,6 +5,7 @@ import { requireUser } from "../lib/auth";
 import { assertParticipant, assertState } from "../lib/authorization";
 import { ValidationError } from "../lib/validation";
 import { createNotification } from "../notifications/helpers";
+import { getSkillOptions } from "../sessions/helpers";
 
 // Request lifecycle: PENDING -> ACCEPTED | DECLINED | CANCELLED.
 // Only PENDING requests can change; the other states are final.
@@ -92,6 +93,25 @@ export const acceptRequest = mutation({
     }
     assertState(request.status, ["PENDING"]);
 
+    const [sender, match] = await Promise.all([
+      ctx.db.get(request.senderId),
+      ctx.db.get(request.matchId),
+    ]);
+    if (!sender || !sender.isActive || !match) {
+      throw new ValidationError("This request is no longer valid");
+    }
+
+    // Skills may have changed since the request was sent. Use the same check
+    // as scheduling, so we never connect two people who have nothing left to
+    // teach each other. The request stays PENDING so either side can cancel
+    // or decline it.
+    const skillOptions = await getSkillOptions(ctx, request.senderId, user._id);
+    if (skillOptions.length === 0) {
+      throw new ValidationError(
+        "You no longer have a skill to exchange with this person, so this request can't be accepted",
+      );
+    }
+
     const now = Date.now();
     await ctx.db.patch(request._id, {
       status: "ACCEPTED",
@@ -101,10 +121,7 @@ export const acceptRequest = mutation({
 
     // An accepted request is what lets the two users schedule sessions,
     // so the match is now connected.
-    const match = await ctx.db.get(request.matchId);
-    if (match) {
-      await ctx.db.patch(match._id, { status: "CONNECTED" });
-    }
+    await ctx.db.patch(match._id, { status: "CONNECTED" });
 
     await createNotification(ctx, {
       userId: request.senderId,

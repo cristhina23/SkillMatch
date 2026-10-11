@@ -90,11 +90,21 @@ export const generateMatchesForCurrentUser = mutation({
       .withIndex("by_user", (q) => q.eq("userId", user._id))
       .collect();
 
+    // Deactivated catalog skills don't count toward matches (same rule as
+    // Discover and scheduling).
+    const activeSkillIds = new Set<Id<"skills">>();
+    for (const us of myUserSkills) {
+      const skill = await ctx.db.get(us.skillId);
+      if (skill?.isActive) {
+        activeSkillIds.add(us.skillId);
+      }
+    }
+
     const myTeachSkillIds = myUserSkills
-      .filter((us) => us.type === "TEACH")
+      .filter((us) => us.type === "TEACH" && activeSkillIds.has(us.skillId))
       .map((us) => us.skillId);
     const myLearnSkillIds = myUserSkills
-      .filter((us) => us.type === "LEARN")
+      .filter((us) => us.type === "LEARN" && activeSkillIds.has(us.skillId))
       .map((us) => us.skillId);
 
     // otherUserId -> skills THEY teach that I want to learn (by_skill_type
