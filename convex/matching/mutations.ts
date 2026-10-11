@@ -71,10 +71,13 @@ async function findExistingMatch(
  *
  * Regeneration behavior (preventing duplicate pair records): if a match
  * already exists for a pair, it is never duplicated. An existing ACTIVE
- * match is refreshed in place (score/matchedSkills/generatedAt). An
- * existing DISMISSED, CONNECTED, or EXPIRED match is left completely
- * untouched — regeneration never resurrects a match the user dismissed,
- * nor silently rewrites one that's already connected or expired.
+ * match is refreshed in place (score/matchedSkills/generatedAt), and an
+ * EXPIRED one becomes ACTIVE again if the pair lines up again. DISMISSED
+ * and CONNECTED matches are never touched.
+ *
+ * Stale matches: the caller's ACTIVE matches that no longer line up at
+ * all (e.g. someone removed a skill) are marked EXPIRED, unless there is
+ * a pending exchange request for them.
  */
 export const generateMatchesForCurrentUser = mutation({
   args: {},
@@ -92,10 +95,6 @@ export const generateMatchesForCurrentUser = mutation({
     const myLearnSkillIds = myUserSkills
       .filter((us) => us.type === "LEARN")
       .map((us) => us.skillId);
-
-    if (myTeachSkillIds.length === 0 && myLearnSkillIds.length === 0) {
-      return [];
-    }
 
     // otherUserId -> skills THEY teach that I want to learn (by_skill_type
     // scoped to each skill I want to learn — not a full table scan).
@@ -167,8 +166,9 @@ export const generateMatchesForCurrentUser = mutation({
         continue;
       }
 
-      if (existing.status === "ACTIVE") {
+      if (existing.status === "ACTIVE" || existing.status === "EXPIRED") {
         await ctx.db.patch(existing._id, {
+          status: "ACTIVE",
           score,
           matchedSkills,
           generatedAt: Date.now(),
@@ -176,6 +176,38 @@ export const generateMatchesForCurrentUser = mutation({
         const refreshed = await ctx.db.get(existing._id);
         if (refreshed) results.push(refreshed);
       }
+    }
+
+    // Expire ACTIVE matches that no longer line up at all. If a request is
+    // still pending we leave the match alone, since accepting it would
+    // otherwise turn an expired match into a connected one.
+    const [activeAsA, activeAsB] = await Promise.all([
+      ctx.db
+        .query("matches")
+        .withIndex("by_userA_status", (q) =>
+          q.eq("userAId", user._id).eq("status", "ACTIVE"),
+        )
+        .collect(),
+      ctx.db
+        .query("matches")
+        .withIndex("by_userB_status", (q) =>
+          q.eq("userBId", user._id).eq("status", "ACTIVE"),
+        )
+        .collect(),
+    ]);
+    for (const match of [...activeAsA, ...activeAsB]) {
+      const partnerId = match.userAId === user._id ? match.userBId : match.userAId;
+      if (otherUserIds.has(partnerId)) {
+        continue;
+      }
+      const requests = await ctx.db
+        .query("exchangeRequests")
+        .withIndex("by_match", (q) => q.eq("matchId", match._id))
+        .collect();
+      if (requests.some((r) => r.status === "PENDING")) {
+        continue;
+      }
+      await ctx.db.patch(match._id, { status: "EXPIRED" });
     }
 
     return results;

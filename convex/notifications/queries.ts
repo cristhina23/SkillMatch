@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { query } from "../_generated/server";
-import { requireUser } from "../lib/auth";
+import { getCurrentUser } from "../lib/auth";
 
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 100;
@@ -8,7 +8,11 @@ const MAX_LIMIT = 100;
 export const listMyNotifications = query({
   args: { limit: v.optional(v.number()) },
   handler: async (ctx, args) => {
-    const user = await requireUser(ctx);
+    // No profile yet (e.g. still onboarding): nothing to show.
+    const user = await getCurrentUser(ctx);
+    if (!user) {
+      return [];
+    }
     const limit = Math.min(
       Math.max(Math.floor(args.limit ?? DEFAULT_LIMIT), 1),
       MAX_LIMIT,
@@ -25,7 +29,10 @@ export const listMyNotifications = query({
 export const getUnreadCount = query({
   args: {},
   handler: async (ctx) => {
-    const user = await requireUser(ctx);
+    const user = await getCurrentUser(ctx);
+    if (!user) {
+      return 0;
+    }
     const unread = await ctx.db
       .query("notifications")
       .withIndex("by_user_read", (q) =>
