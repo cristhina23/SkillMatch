@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import type { Doc } from "../_generated/dataModel";
 import { query } from "../_generated/server";
 import { getCurrentUser } from "../lib/auth";
+import { AuthorizationError } from "../lib/authorization";
 
 /**
  * Fields safe to show to any authenticated caller about someone else's
@@ -48,7 +49,7 @@ export const getById = query({
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
-      throw new Error("Not authenticated");
+      throw new AuthorizationError("Not authenticated");
     }
 
     const user = await ctx.db.get(args.userId);

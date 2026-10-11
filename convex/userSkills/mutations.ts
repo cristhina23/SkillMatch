@@ -3,6 +3,7 @@ import type { Id } from "../_generated/dataModel";
 import { mutation, type MutationCtx } from "../_generated/server";
 import { requireUser } from "../lib/auth";
 import { assertOwner } from "../lib/authorization";
+import { ValidationError } from "../lib/validation";
 
 const userSkillType = v.union(v.literal("TEACH"), v.literal("LEARN"));
 const userSkillLevel = v.union(
@@ -28,10 +29,10 @@ type UserSkillType = "TEACH" | "LEARN";
 async function requireSelectableSkill(ctx: MutationCtx, skillId: Id<"skills">) {
   const skill = await ctx.db.get(skillId);
   if (!skill) {
-    throw new Error("Skill not found");
+    throw new ValidationError("Skill not found");
   }
   if (!skill.isActive) {
-    throw new Error("Skill is not active");
+    throw new ValidationError("Skill is not active");
   }
 }
 
@@ -78,7 +79,7 @@ export const addUserSkill = mutation({
       args.type,
     );
     if (existing) {
-      throw new Error(
+      throw new ValidationError(
         `This user already has a ${args.type} relationship for this skill`,
       );
     }
@@ -116,7 +117,7 @@ export const updateUserSkill = mutation({
 
     const userSkill = await ctx.db.get(args.userSkillId);
     if (!userSkill) {
-      throw new Error("UserSkill not found");
+      throw new ValidationError("UserSkill not found");
     }
     assertOwner(userSkill.userId, user._id);
 
@@ -134,7 +135,7 @@ export const updateUserSkill = mutation({
         nextType,
       );
       if (conflict && conflict._id !== userSkill._id) {
-        throw new Error(
+        throw new ValidationError(
           `This user already has a ${nextType} relationship for this skill`,
         );
       }
@@ -163,7 +164,7 @@ export const removeUserSkill = mutation({
 
     const userSkill = await ctx.db.get(args.userSkillId);
     if (!userSkill) {
-      throw new Error("UserSkill not found");
+      throw new ValidationError("UserSkill not found");
     }
     assertOwner(userSkill.userId, user._id);
 

@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import type { Id } from "../_generated/dataModel";
 import { mutation, type MutationCtx } from "../_generated/server";
 import { requireUser } from "../lib/auth";
+import { AuthorizationError } from "../lib/authorization";
 import { assertNonEmptyString, ValidationError } from "../lib/validation";
 
 const profileFields = {
@@ -56,7 +57,7 @@ export const createCurrentUser = mutation({
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
-      throw new Error("Not authenticated");
+      throw new AuthorizationError("Not authenticated");
     }
 
     const existing = await ctx.db

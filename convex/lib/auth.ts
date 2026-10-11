@@ -4,6 +4,7 @@ import type {
   GenericQueryCtx,
 } from "convex/server";
 import schema from "../schema";
+import { AuthorizationError } from "./authorization";
 
 type DataModel = DataModelFromSchemaDefinition<typeof schema>;
 
@@ -34,7 +35,7 @@ export async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
 export async function requireUser(ctx: QueryCtx | MutationCtx) {
   const user = await getCurrentUser(ctx);
   if (!user) {
-    throw new Error("Not authenticated");
+    throw new AuthorizationError("Not authenticated");
   }
   return user;
 }

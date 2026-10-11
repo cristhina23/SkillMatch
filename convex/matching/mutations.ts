@@ -3,6 +3,7 @@ import type { Doc, Id } from "../_generated/dataModel";
 import { mutation, type MutationCtx } from "../_generated/server";
 import { requireUser } from "../lib/auth";
 import { assertParticipant, assertState } from "../lib/authorization";
+import { ValidationError } from "../lib/validation";
 
 const matchStatus = v.union(
   v.literal("ACTIVE"),
@@ -216,18 +217,16 @@ export const generateMatchesForCurrentUser = mutation({
 
 /**
  * Changes a match's status. Only the two participants may act on it
- * (`assertParticipant`), and only ACTIVE -> DISMISSED is accepted today:
+ * (`assertParticipant`), and users can only dismiss an ACTIVE match.
+ * The other statuses are set by the system, not by users:
  *
- * - CONNECTED is meant to happen through the Exchange Requests domain,
- *   which does not exist yet — allowing a user to self-assign CONNECTED
- *   here would grant a status the product hasn't actually earned.
- * - EXPIRED is meant to happen through a time-based policy, which is also
- *   not implemented (and background jobs are out of scope for this task).
+ * - CONNECTED is set when an exchange request is accepted
+ *   (exchanges/mutations.ts acceptRequest).
+ * - EXPIRED is set by generateMatchesForCurrentUser when a match no longer
+ *   lines up.
  *
- * `assertState` (existing authorization primitive) additionally confirms
- * the match is currently ACTIVE before allowing the dismissal, so an
- * already-DISMISSED/CONNECTED/EXPIRED match can't be re-transitioned
- * through this path either.
+ * `assertState` confirms the match is currently ACTIVE before dismissing,
+ * so a DISMISSED/CONNECTED/EXPIRED match can't be changed here.
  */
 export const updateMatchStatus = mutation({
   args: { matchId: v.id("matches"), status: matchStatus },
@@ -236,15 +235,14 @@ export const updateMatchStatus = mutation({
 
     const match = await ctx.db.get(args.matchId);
     if (!match) {
-      throw new Error("Match not found");
+      throw new ValidationError("Match not found");
     }
     assertParticipant([match.userAId, match.userBId], user._id);
 
     if (args.status !== "DISMISSED") {
-      throw new Error(
-        `Setting a match to "${args.status}" is not supported yet. ` +
-          "CONNECTED requires the Exchange Requests domain, and EXPIRED " +
-          "requires a time-based expiry policy — neither exists yet.",
+      throw new ValidationError(
+        `You can only dismiss a match. ${args.status} is set automatically ` +
+          "(CONNECTED when a request is accepted, EXPIRED when the skills no longer line up).",
       );
     }
 

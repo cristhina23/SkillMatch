@@ -2,7 +2,7 @@ import { v } from "convex/values";
 import type { Id } from "../_generated/dataModel";
 import { mutation, type MutationCtx } from "../_generated/server";
 import { requireUser } from "../lib/auth";
-import { assertNonEmptyString } from "../lib/validation";
+import { assertNonEmptyString, ValidationError } from "../lib/validation";
 
 /**
  * Minimal slug normalization: trim + lowercase. No slug-generation
@@ -32,7 +32,7 @@ async function assertSlugAvailable(
     .unique();
 
   if (existing && existing._id !== excludeSkillId) {
-    throw new Error(`Skill slug "${slug}" already exists`);
+    throw new ValidationError(`Skill slug "${slug}" already exists`);
   }
 }
 
@@ -94,7 +94,7 @@ export const update = mutation({
 
     const skill = await ctx.db.get(args.skillId);
     if (!skill) {
-      throw new Error("Skill not found");
+      throw new ValidationError("Skill not found");
     }
 
     const updates: Partial<{
@@ -143,7 +143,7 @@ export const setActive = mutation({
 
     const skill = await ctx.db.get(args.skillId);
     if (!skill) {
-      throw new Error("Skill not found");
+      throw new ValidationError("Skill not found");
     }
 
     await ctx.db.patch(skill._id, {

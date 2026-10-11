@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { query } from "../_generated/server";
 import { requireUser } from "../lib/auth";
+import { AuthorizationError } from "../lib/authorization";
 
 const userSkillType = v.union(v.literal("TEACH"), v.literal("LEARN"));
 
@@ -46,7 +47,7 @@ export const listUserSkills = query({
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
-      throw new Error("Not authenticated");
+      throw new AuthorizationError("Not authenticated");
     }
 
     if (args.type !== undefined) {
@@ -75,7 +76,7 @@ export const getById = query({
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
-      throw new Error("Not authenticated");
+      throw new AuthorizationError("Not authenticated");
     }
 
     return await ctx.db.get(args.userSkillId);
