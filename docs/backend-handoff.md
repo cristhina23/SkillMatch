@@ -1,197 +1,132 @@
-# Backend Handoff for Integration
+# SkillMatch Backend Handoff
 
-What the Convex backend gives the frontend, and what still has to be wired up.
-Everything here exists in `master` and is deployed to `dev:calm-horse-47`.
-Nothing below has been tested end to end through the browser yet.
+## 1. Project Overview
 
-## Setup after pulling
+SkillMatch helps people trade skills. A user lists skills they can teach and
+skills they want to learn. The app finds other users who are a good fit, they
+send each other exchange requests, and then they schedule a live video session.
 
-```bash
-npx convex dev                      # push functions to your own dev deployment
-npx convex run seed:seedSkills      # once per new deployment: adds the 12 starter skills
-```
+The backend runs on **Convex** (our database and server functions) and uses
+**Clerk** for sign-in. The frontend calls Convex functions to read and save data.
 
-## Errors
+## 2. What I Completed
 
-Backend checks throw `ConvexError`s (`ValidationError` / `AuthorizationError`),
-so `getErrorMessage(err)` from `lib/utils/errors.ts` shows the real message,
-e.g. `Username "ana" is already taken` or
-`There is already a pending request for this match`.
+- **User profiles:** onboarding creates the user's profile, and the profile page
+  shows real data. A user can't create two profiles or take a username that's
+  already in use.
+- **Skills:** a shared list of 12 starter skills. Users add skills they can
+  *teach* or want to *learn*, and they can only change their own.
+- **Matching:** finds users whose skills complement each other. For example, I
+  teach Spanish and you want to learn it. Each match gets a score from 0 to 100,
+  and a match that works both ways scores higher.
+- **Exchange requests:** a user sends a request to a match. The other person can
+  accept or decline, and the sender can cancel. Accepting is what allows the two
+  users to schedule a session.
+- **Notifications:** users get a notification when someone sends, accepts, or
+  declines a request, schedules or cancels a session, or leaves a review. Users
+  only see their own notifications.
+- **Authentication and validation:** every function checks who is signed in and
+  what they are allowed to change. For example, only the person who received a
+  request can accept it.
 
-## Queries when the user has no profile yet
+**Final fixes (Blocks 1–4):**
+- **Block 1:** published the Discover query and the stale-match handling.
+  When a user's skills change and a match no longer makes sense, the match is
+  marked `EXPIRED` the next time matches are generated.
+- **Block 2:** error messages are now readable in the app. For example,
+  "Username is already taken" instead of "Something went wrong."
+- **Block 3:** a request can only be accepted if the two users still share a
+  skill. Otherwise they would be connected with nothing to schedule.
+- **Block 4:** skills that were turned off in the catalog no longer count
+  toward matches.
 
-These return an empty result instead of throwing, so they are safe to call on
-any signed-in page: `getDiscoverMatches`, `getCurrentUserMatches` → `[]`,
-`getMatchById` → `null`, `listMyNotifications` → `[]`, `getUnreadCount` → `0`,
-`listSentRequests` / `listReceivedRequests` → `[]`, and Blaine's session queries.
+## 3. How the Frontend Uses the Backend
 
-`userSkills.listCurrentUserSkills` still throws without a profile. Skip it until
-`users.current` returns a user, like `app/profile/page.tsx` does.
+All functions are called with Convex's `useQuery` (read data) and `useMutation`
+(save data). Errors can be shown with `getErrorMessage(err)` from
+`lib/utils/errors.ts`.
 
----
+- **Show matches (Discover):** first call
+  `api.matching.mutations.generateMatchesForCurrentUser`, then show
+  `api.matching.queries.getDiscoverMatches`. Each match already includes the
+  person's name, skills, score, and a short reason, such as
+  *"Ana can teach you Guitar. You can teach Ana Spanish."*
+- **Dismiss a match:** `updateMatchStatus({ matchId, status: "DISMISSED" })`.
+- **Send a request:** `api.exchanges.mutations.sendRequest({ matchId, message })`.
+  The message is optional.
+- **Accept, decline, or cancel:** `acceptRequest`, `declineRequest`, or
+  `cancelRequest`, each with `{ requestId }`.
+- **Show requests:** `listReceivedRequests({ status: "PENDING" })` for requests
+  waiting for an answer, and `listSentRequests` for requests the user sent.
+- **Show notifications:** `api.notifications.queries.listMyNotifications` for the
+  list and `getUnreadCount` for the badge. Mark them read with
+  `markNotificationRead({ notificationId })` or `markAllNotificationsRead()`.
+- **Dashboard:** no new backend is needed. Use `users.queries.current`,
+  `userSkills.queries.listCurrentUserSkills`, `sessions.queries.getUpcomingSessions`,
+  and `getUnreadCount`.
 
-## Discover
+If the user hasn't finished onboarding, most of these queries return an empty
+result instead of an error. The exception is `listCurrentUserSkills`, which
+should only be called after `users.queries.current` returns a user.
 
-| Function | Type | Args | Returns |
-|---|---|---|---|
-| `api.matching.mutations.generateMatchesForCurrentUser` | mutation | `{}` | ACTIVE match docs created/refreshed. Needs a profile. |
-| `api.matching.queries.getDiscoverMatches` | query | `{}` | list below, highest score first |
-| `api.matching.mutations.updateMatchStatus` | mutation | `{ matchId, status: "DISMISSED" }` | updated match. Only DISMISSED is allowed. |
+## 4. What the Team Still Needs to Do
 
-`getDiscoverMatches` item (already fits `MatchProfileDetails`):
+**Arthur (frontend):**
+- Connect Discover to the real backend. It still uses demo data.
+- Save dismissals with `updateMatchStatus`. Right now dismissed people come back
+  after a page reload.
+- Send requests with `sendRequest({ matchId, message })`. The backend does not
+  accept the form's `requestedSkill` and `offeredSkill` fields, so remove them or
+  put that text in the message.
+- Decide about one-way matches. The "Send Exchange Request" button is disabled
+  when the other person teaches nothing, but the backend allows a request when
+  only *you* can teach *them*.
+- **Build a request inbox** where users can accept, decline, or cancel requests.
+  This is required: without it, nobody can reach the scheduling step.
+- Connect the dashboard and add a notifications view. Both are still missing or
+  use placeholder data.
 
-```ts
-{
-  id: Id<"matches">,       // use as matchId for sendRequest / updateMatchStatus
-  partnerId: Id<"users">,
-  name: string,
-  username: string,
-  location?: string,
-  avatarUrl?: string,
-  bio?: string,
-  score: number,           // 0-100
-  matchedSkills: string[], // skill names
-  teachingSkills: string[], // what the partner can teach
-  learningSkills: string[], // what the partner wants to learn
-  matchReason: string,     // "Ana can teach you Guitar. You can teach Ana Spanish."
-}
-```
+**Blaine (sessions and video):**
+- Set up Stream. The video secret must be set on Convex with
+  `npx convex env set STREAM_API_SECRET ...`. Adding it to `.env.local` is not
+  enough. `NEXT_PUBLIC_STREAM_API_KEY` must also be added to `.env.local`.
+- Test joining a video call.
 
-### Arthur — needed in `app/discover/page.tsx`
-1. Remove `demoMatches`. Call `generateMatchesForCurrentUser` once when the page
-   loads (or with a "Find matches" button), then show `useQuery(getDiscoverMatches)`.
-2. Dismiss must call `updateMatchStatus({ matchId: id, status: "DISMISSED" })`.
-   Right now it only filters local state, so dismissed people come back on reload.
-3. Send must call `sendRequest` (see below) instead of `console.log`.
+**Together:**
+- Decide where the request inbox goes: its own page, the Sessions page, or the
+  dashboard.
+- Run the full end-to-end test below in the browser. Nothing has been tested end
+  to end in the browser yet.
 
-## Exchange requests
+**Known limits:**
+- Requests never expire on their own, and session reminders are not sent. Both
+  would need scheduled background jobs.
+- Discover can't tell whether a request was already sent, so after a reload the
+  button shows again. Sending twice returns an "already pending" error.
 
-| Function | Type | Args | Returns | Who can call |
-|---|---|---|---|---|
-| `api.exchanges.mutations.sendRequest` | mutation | `{ matchId, message? }` | request id | either person in an ACTIVE match |
-| `api.exchanges.mutations.acceptRequest` | mutation | `{ requestId }` | request id | recipient only |
-| `api.exchanges.mutations.declineRequest` | mutation | `{ requestId }` | request id | recipient only |
-| `api.exchanges.mutations.cancelRequest` | mutation | `{ requestId }` | request id | sender only |
-| `api.exchanges.queries.listReceivedRequests` | query | `{ status? }` | requests sent to me | — |
-| `api.exchanges.queries.listSentRequests` | query | `{ status? }` | requests I sent | — |
+## 5. How to Run and Test
 
-List item: the request document plus
-`otherUser: { _id, name, username, avatarUrl }`, newest first.
-`status` is one of `PENDING | ACCEPTED | DECLINED | CANCELLED | EXPIRED`.
+1. Pull the latest `master` and install packages with `npm install`.
+2. Push the backend functions to your own Convex dev deployment:
+   `npx convex dev`
+3. On a new deployment, add the starter skills once:
+   `npx convex run seed:seedSkills`
+4. Start the app in a second terminal: `npm run dev`
+5. Before pushing changes, check for errors: `npx tsc --noEmit` and `npx eslint .`
 
-Rules:
-- Only `PENDING` requests can be accepted, declined or cancelled.
-- One `PENDING` or `ACCEPTED` request per match, in either direction. Sending again
-  shows "There is already a pending request for this match".
-- After a decline or cancel, either person can send a new request.
-- Accepting sets the match to `CONNECTED`. The pair then appears in Blaine's
-  `getSchedulableExchanges`, so they can schedule.
-- Accepting is rejected if the two people no longer share an active skill that
-  one teaches and the other wants to learn. The request stays `PENDING` so it can
-  be declined or cancelled.
-- `EXPIRED` requests are not implemented (no scheduled jobs in the MVP).
+## 6. Final Integration Checklist
 
-### Arthur — request form contract
-`sendRequest` only takes `{ matchId, message? }`. The current
-`ExchangeRequestDraft` has `requestedSkill` and `offeredSkill`, which the backend
-has no fields for. Either drop them or put them in the message text. The actual
-skill is picked later on the schedule page.
+Use two test accounts (User A and User B):
 
-### Arthur — one-way matches
-The "Send Exchange Request" button is disabled when the partner teaches nothing
-(`MatchProfileModal.tsx`). The backend allows a request when only *you* can teach
-*them*. Decide whether to keep that restriction.
-
-### Arthur — request inbox (required)
-There is no page that shows requests yet, so nobody can accept a request and
-nobody can reach scheduling. Needed:
-- **Received**: `listReceivedRequests({ status: "PENDING" })` with Accept and Decline.
-- **Sent**: `listSentRequests({ status: "PENDING" })` with Cancel.
-- After accepting, link to `/sessions` (or `/sessions/schedule/[requestId]`).
-
-Where it goes (own page, `/sessions` section, or dashboard) is a team decision.
-`getDiscoverMatches` does not say whether a request is already pending, so after
-a reload Discover can't show "request sent" by itself.
-
-## Dashboard (no new backend needed)
-
-| Data | Function |
-|---|---|
-| Current user | `api.users.queries.current` |
-| My skills | `api.userSkills.queries.listCurrentUserSkills` (+ `api.skills.queries.listActive` for names) |
-| Upcoming sessions | `api.sessions.queries.getUpcomingSessions` |
-| Pending requests to answer | `api.exchanges.queries.listReceivedRequests({ status: "PENDING" })` |
-| Unread notifications | `api.notifications.queries.getUnreadCount` |
-
-`getUpcomingSessions` items are the session document plus
-`teacher`, `learner` (`{ _id, name, username, avatarUrl }`), `skill { _id, name }`,
-`viewerRole: "TEACHER" | "LEARNER"` and `needsReview`.
-
-The dashboard page is still hardcoded today.
-
-## Notifications
-
-| Function | Type | Args | Returns |
-|---|---|---|---|
-| `api.notifications.queries.listMyNotifications` | query | `{ limit? }` (default 20, max 100) | newest first |
-| `api.notifications.queries.getUnreadCount` | query | `{}` | number |
-| `api.notifications.mutations.markNotificationRead` | mutation | `{ notificationId }` | id. Owner only. |
-| `api.notifications.mutations.markAllNotificationsRead` | mutation | `{}` | how many were marked |
-
-Fields: `type, title, message, read, createdAt, readAt?, relatedEntityId?, relatedEntityType?`.
-
-| Event | Type | Sent to |
-|---|---|---|
-| request sent | `EXCHANGE_REQUEST` | recipient |
-| request accepted | `REQUEST_ACCEPTED` | sender |
-| request declined | `REQUEST_DECLINED` | sender |
-| session scheduled | `SESSION_SCHEDULED` | the other participant |
-| session cancelled | `SESSION_CANCELLED` | the other participant |
-| review left | `REVIEW_RECEIVED` | the person reviewed |
-
-Not sent: request cancelled, session started/completed/no-show,
-`SESSION_REMINDER` (would need a scheduled job).
-
-Links: `relatedEntityType: "learningSession"` → `/session/[relatedEntityId]`,
-`"exchangeRequest"` → the request inbox.
-
-No notification UI exists yet (Arthur).
-
-## Matching rules to know
-
-- Matches are only created or updated when someone calls
-  `generateMatchesForCurrentUser`.
-- On regenerate, an ACTIVE match that no longer lines up becomes `EXPIRED`,
-  unless it has a `PENDING` request. It becomes `ACTIVE` again if the skills
-  line up again.
-- `DISMISSED` and `CONNECTED` matches are never changed by regenerate.
-- Deactivated catalog skills don't count toward matches.
-- `getDiscoverMatches` only shows `ACTIVE` matches, and hides any whose skills
-  no longer line up, even before someone regenerates.
-
-## Sessions and video (Blaine)
-
-Already wired in the frontend: scheduling, the session lifecycle, and reviews.
-Video needs `STREAM_API_SECRET` set on the Convex deployment
-(`npx convex env set STREAM_API_SECRET ...`, never in a frontend file) and
-`NEXT_PUBLIC_STREAM_API_KEY` in `.env.local`. Neither is set yet. That is
-Blaine's setup.
-
-## Shared end-to-end checklist
-
-Use two Clerk test accounts (A and B) on the same deployment.
-
-- [ ] A and B sign up and complete onboarding
-- [ ] Each adds skills on the profile page (A teaches what B learns, and the other way)
-- [ ] Each sets availability
-- [ ] A opens Discover: matches are generated and B shows up with a reason
-- [ ] A dismisses someone; they stay gone after reload
-- [ ] A sends a request to B; B gets an `EXCHANGE_REQUEST` notification
-- [ ] Sending again shows the "already pending" error
-- [ ] B accepts in the inbox; A gets `REQUEST_ACCEPTED`; the match is CONNECTED
-- [ ] One of them schedules a session; the other gets `SESSION_SCHEDULED`
-- [ ] Both join the video call at the scheduled time
-- [ ] One marks the session completed
-- [ ] Both leave a review; each gets `REVIEW_RECEIVED`
-- [ ] Notifications can be marked read; the unread count goes to 0
-- [ ] Also try: decline, cancel a request, cancel a session before it starts
+- [ ] Both users sign up and complete onboarding
+- [ ] Both add skills on the profile page (A teaches what B wants to learn, and the other way around)
+- [ ] Both set their availability
+- [ ] A opens Discover and sees B as a match with a reason
+- [ ] A dismisses another match, and it stays gone after a reload
+- [ ] A sends a request to B, and B gets a notification
+- [ ] B accepts the request, and A gets a notification
+- [ ] One of them schedules a session, and the other gets a notification
+- [ ] Both join the video call
+- [ ] The session is marked completed, and both leave a review
+- [ ] Notifications can be marked as read
+- [ ] Also try declining a request, cancelling a request, and cancelling a session
