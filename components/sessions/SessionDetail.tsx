@@ -4,6 +4,7 @@ import { useQuery } from "convex/react";
 import { useState } from "react";
 import { api } from "@/convex/_generated/api";
 import { LoadingState } from "@/components/ui/LoadingState";
+import { SessionReview } from "@/components/reviews/SessionReview";
 import { SessionActions } from "@/components/sessions/SessionActions";
 import { SessionStatusBadge } from "@/components/sessions/SessionStatusBadge";
 import { formatInTimezone, getBrowserTimezone } from "@/lib/utils/time";
@@ -93,7 +94,14 @@ export function SessionDetail({ sessionId }: { sessionId: string }) {
         </div>
       </dl>
 
-      <SessionActions session={session} timeZone={viewerTimezone} />
+      {session.status === "COMPLETED" ? (
+        <SessionReview
+          sessionId={session._id}
+          partnerName={otherPerson?.name ?? "your partner"}
+        />
+      ) : (
+        <SessionActions session={session} timeZone={viewerTimezone} />
+      )}
     </div>
   );
 }

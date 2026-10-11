@@ -45,7 +45,12 @@ export function SessionCard({ session }: { session: SessionWithDetails }) {
           · {session.viewerRole === "TEACHER" ? "Teaching" : "Learning"}
         </p>
       </div>
-      <SessionStatusBadge status={session.status} />
+      <span className="flex items-center gap-2">
+        {session.needsReview && (
+          <span className="text-xs font-medium text-amber-700">Review pending</span>
+        )}
+        <SessionStatusBadge status={session.status} />
+      </span>
     </Link>
   );
 }

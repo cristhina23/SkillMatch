@@ -39,16 +39,23 @@ async function withDetails(
   session: Doc<"learningSessions">,
   viewerId: Id<"users">,
 ) {
-  const [teacher, learner, skill] = await Promise.all([
+  const [teacher, learner, skill, myReview] = await Promise.all([
     ctx.db.get(session.teacherId),
     ctx.db.get(session.learnerId),
     ctx.db.get(session.skillId),
+    ctx.db
+      .query("reviews")
+      .withIndex("by_session_reviewer", (q) =>
+        q.eq("sessionId", session._id).eq("reviewerId", viewerId),
+      )
+      .unique(),
   ]);
   return {
     ...session,
     teacher: toPublicUser(teacher),
     learner: toPublicUser(learner),
     skill: skill && { _id: skill._id, name: skill.name },
+    needsReview: session.status === "COMPLETED" && !myReview,
     viewerRole:
       session.teacherId === viewerId
         ? ("TEACHER" as const)
