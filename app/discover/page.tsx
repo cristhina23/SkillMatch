@@ -2,7 +2,12 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
+import { useMutation, useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
 import { AppShell } from "@/components/layout/AppShell";
+import { RequireConvexAuth } from "@/components/layout/RequireConvexAuth";
+import { LoadingState } from "@/components/ui/LoadingState";
 import { MatchList } from "@/components/matching/MatchList";
 import {
   MatchProfileModal,
@@ -11,53 +16,53 @@ import {
 } from "@/components/matching/MatchProfileModal";
 import type { ExchangeRequestDraft } from "@/components/matching/ExchangeRequestForm";
 
-const demoMatches: MatchProfileDetails[] = [
-  {
-    id: "demo-1",
-    name: "Sarah Chen",
-    username: "sarahchen",
-    location: "Charlottetown, PE",
-    score: 100,
-    matchedSkills: ["Photography", "English"],
-    bio: "I enjoy photography and helping others improve their English skills.",
-    teachingSkills: ["Photography", "English"],
-    learningSkills: ["Web Development"],
-    matchReason:
-      "Sarah can share photography and English skills, while you can explore a possible web development exchange.",
-  },
-  {
-    id: "demo-2",
-    name: "Jordan Lee",
-    username: "jordanlee",
-    location: "Stratford, PE",
-    score: 95,
-    matchedSkills: ["Web Development"],
-    bio: "I enjoy building websites and learning new creative skills.",
-    teachingSkills: ["Web Development"],
-    learningSkills: ["Photography"],
-    matchReason:
-      "Jordan teaches web development and is interested in learning photography.",
-  },
-  {
-    id: "demo-3",
-    name: "Alex Morgan",
-    username: "alexmorgan",
-    score: 75,
-    matchedSkills: ["Graphic Design", "English"],
-    bio: "I like creative projects and exchanging ideas with other learners.",
-    teachingSkills: ["Graphic Design"],
-    learningSkills: ["English"],
-    matchReason:
-      "Alex wants to improve English skills and can share graphic design knowledge.",
-  },
-];
-
 type ScoreFilter = "all" | "90" | "80";
 type SortOption = "highest" | "lowest" | "name";
 
 export default function DiscoverPage() {
-  const [matches, setMatches] =
-    useState<MatchProfileDetails[]>(demoMatches);
+  return (
+    <AppShell>
+      <div className="space-y-8">
+        <header>
+          <p className="text-sm font-medium text-zinc-500">
+            Discover
+          </p>
+          <h1 className="mt-1 text-3xl font-bold tracking-tight text-zinc-900">
+            Find your skill match
+          </h1>
+          <p className="mt-2 max-w-2xl text-zinc-600">
+            Discover people who can teach skills you want
+            to learn and who may want to learn from you.
+          </p>
+        </header>
+
+        <RequireConvexAuth>
+          <DiscoverContent />
+        </RequireConvexAuth>
+      </div>
+    </AppShell>
+  );
+}
+
+function DiscoverContent() {
+  const matchesData = useQuery(
+    api.matching.queries.getDiscoverMatches,
+    {}
+  );
+
+  const sentRequests = useQuery(
+    api.exchanges.queries.listSentRequests,
+    {}
+  );
+
+  const receivedRequests = useQuery(
+    api.exchanges.queries.listReceivedRequests,
+    {}
+  );
+
+  const sendRequest = useMutation(
+    api.exchanges.mutations.sendRequest
+  );
 
   const [selectedMatch, setSelectedMatch] =
     useState<MatchProfileDetails | null>(null);
@@ -65,14 +70,33 @@ export default function DiscoverPage() {
   const [modalView, setModalView] =
     useState<MatchModalView>("profile");
 
-  const [sentRequestIds, setSentRequestIds] =
-    useState<string[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [requestError, setRequestError] = useState<string | null>(null);
+  const [recentlySentId, setRecentlySentId] = useState<string | null>(null);
 
   const [search, setSearch] = useState("");
   const [scoreFilter, setScoreFilter] =
     useState<ScoreFilter>("all");
   const [sortBy, setSortBy] =
     useState<SortOption>("highest");
+
+  const matches = useMemo<MatchProfileDetails[]>(
+    () =>
+      (matchesData ?? []).map((match) => ({
+        id: match.id,
+        name: match.name,
+        username: match.username,
+        location: match.location,
+        avatarUrl: match.avatarUrl,
+        bio: match.bio,
+        score: match.score,
+        matchedSkills: match.matchedSkills,
+        teachingSkills: match.teachingSkills,
+        learningSkills: match.learningSkills,
+        matchReason: match.matchReason,
+      })),
+    [matchesData]
+  );
 
   const filteredMatches = useMemo(() => {
     const keyword = search.trim().toLowerCase();
@@ -100,79 +124,91 @@ export default function DiscoverPage() {
         return matchesSearch && matchesScore;
       })
       .sort((a, b) => {
-        if (sortBy === "lowest") {
-          return a.score - b.score;
-        }
-
+        if (sortBy === "lowest") return a.score - b.score;
         if (sortBy === "name") {
           return a.name.localeCompare(b.name);
         }
-
         return b.score - a.score;
       });
   }, [matches, search, scoreFilter, sortBy]);
 
-  function handleDismiss(id: string) {
-    setMatches((current) =>
-      current.filter((match) => match.id !== id)
-    );
+  const unavailableMatchIds = useMemo(() => {
+    const ids = new Set<string>();
 
-    if (selectedMatch?.id === id) {
-      setSelectedMatch(null);
-      setModalView("profile");
+    for (const request of [
+      ...(sentRequests ?? []),
+      ...(receivedRequests ?? []),
+    ]) {
+      if (
+        request.status === "PENDING" ||
+        request.status === "ACCEPTED"
+      ) {
+        ids.add(request.matchId);
+      }
     }
-  }
+
+    return ids;
+  }, [sentRequests, receivedRequests]);
+
+  const selectedRequestSent = selectedMatch
+    ? unavailableMatchIds.has(selectedMatch.id) ||
+      recentlySentId === selectedMatch.id
+    : false;
+
+  const handleCloseModal = useCallback(() => {
+    if (isSubmitting) return;
+    setSelectedMatch(null);
+    setModalView("profile");
+    setRequestError(null);
+    setRecentlySentId(null);
+  }, [isSubmitting]);
 
   function handleViewProfile(id: string) {
     const match = matches.find((item) => item.id === id);
-
     if (!match) return;
 
     setSelectedMatch(match);
     setModalView("profile");
+    setRequestError(null);
+    setRecentlySentId(null);
   }
 
-  const handleCloseModal = useCallback(() => {
-    setSelectedMatch(null);
-    setModalView("profile");
-  }, []);
-
   function handleStartRequest() {
-    if (!selectedMatch) return;
-
-    if (sentRequestIds.includes(selectedMatch.id)) {
-      return;
-    }
-
+    if (!selectedMatch || selectedRequestSent) return;
+    setRequestError(null);
     setModalView("request");
   }
 
-  function handleBackToProfile() {
-    setModalView("profile");
-  }
-
-  function handleSubmitRequest(request: ExchangeRequestDraft) {
-    if (!selectedMatch) return;
-
-    if (request.matchId !== selectedMatch.id) {
+  async function handleSubmitRequest(request: ExchangeRequestDraft) {
+    if (
+      !selectedMatch ||
+      request.matchId !== selectedMatch.id ||
+      isSubmitting ||
+      selectedRequestSent
+    ) {
       return;
     }
 
-    if (sentRequestIds.includes(request.matchId)) {
-      return;
+    setIsSubmitting(true);
+    setRequestError(null);
+
+    try {
+      await sendRequest({
+        matchId: request.matchId as Id<"matches">,
+        message: request.message || undefined,
+      });
+
+      setRecentlySentId(request.matchId);
+      setModalView("profile");
+    } catch (err) {
+      setRequestError(
+        err instanceof Error
+          ? err.message
+          : "Could not send your request. Please try again."
+      );
+    } finally {
+      setIsSubmitting(false);
     }
-
-    // Frontend demo only.
-    // Replace with a Convex mutation after backend
-    // exchange requests are implemented.
-    console.log("Demo exchange request:", request);
-
-    setSentRequestIds((current) => [
-      ...current,
-      request.matchId,
-    ]);
-
-    setModalView("profile");
   }
 
   function clearFilters() {
@@ -184,179 +220,146 @@ export default function DiscoverPage() {
   const hasActiveFilters =
     search.trim() !== "" || scoreFilter !== "all";
 
-  const selectedRequestSent = selectedMatch
-    ? sentRequestIds.includes(selectedMatch.id)
-    : false;
+  if (
+    matchesData === undefined ||
+    sentRequests === undefined ||
+    receivedRequests === undefined
+  ) {
+    return <LoadingState />;
+  }
 
   return (
-    <AppShell>
-      <div className="space-y-8">
-        <header>
-          <p className="text-sm font-medium text-zinc-500">
-            Discover
-          </p>
-
-          <h1 className="mt-1 text-3xl font-bold tracking-tight text-zinc-900">
-            Find your skill match
-          </h1>
-
-          <p className="mt-2 max-w-2xl text-zinc-600">
-            Discover people who can teach skills you want
-            to learn and who may want to learn from you.
-          </p>
-        </header>
-
-        <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
-          <div className="grid gap-4 md:grid-cols-2">
-            <div>
-              <label
-                htmlFor="match-search"
-                className="mb-2 block text-sm font-medium text-zinc-700"
-              >
-                Search matches
-              </label>
-
-              <input
-                id="match-search"
-                type="search"
-                value={search}
-                onChange={(event) =>
-                  setSearch(event.target.value)
-                }
-                placeholder="Search by name or skill..."
-                className="w-full rounded-lg border border-zinc-300 px-4 py-2.5 text-sm outline-none focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200"
-              />
-            </div>
-
-            <div>
-              <label
-                htmlFor="match-sort"
-                className="mb-2 block text-sm font-medium text-zinc-700"
-              >
-                Sort by
-              </label>
-
-              <select
-                id="match-sort"
-                value={sortBy}
-                onChange={(event) =>
-                  setSortBy(event.target.value as SortOption)
-                }
-                className="w-full rounded-lg border border-zinc-300 bg-white px-4 py-2.5 text-sm outline-none focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200"
-              >
-                <option value="highest">
-                  Highest match score
-                </option>
-                <option value="lowest">
-                  Lowest match score
-                </option>
-                <option value="name">
-                  Name (A-Z)
-                </option>
-              </select>
-            </div>
-          </div>
-
-          <div className="mt-5">
-            <p className="mb-3 text-sm font-medium text-zinc-700">
-              Filter by match score
-            </p>
-
-            <div className="flex flex-wrap gap-2">
-              {(
-                [
-                  { value: "all", label: "All matches" },
-                  { value: "90", label: "90% and above" },
-                  { value: "80", label: "80% and above" },
-                ] as const
-              ).map((option) => (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() =>
-                    setScoreFilter(option.value)
-                  }
-                  aria-pressed={
-                    scoreFilter === option.value
-                  }
-                  className={`rounded-full px-4 py-2 text-sm font-medium transition ${
-                    scoreFilter === option.value
-                      ? "bg-zinc-900 text-white"
-                      : "bg-zinc-100 text-zinc-700 hover:bg-zinc-200"
-                  }`}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section>
-          <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h2 className="text-xl font-bold text-zinc-900">
-                Recommended for you
-              </h2>
-
-              <p className="mt-1 text-sm text-zinc-500">
-                {filteredMatches.length}{" "}
-                {filteredMatches.length === 1
-                  ? "match found"
-                  : "matches found"}
-              </p>
-            </div>
-
-            {hasActiveFilters && (
-              <button
-                type="button"
-                onClick={clearFilters}
-                className="text-sm font-medium text-zinc-600 underline underline-offset-4 hover:text-zinc-900"
-              >
-                Clear filters
-              </button>
-            )}
-          </div>
-
-          {filteredMatches.length === 0 &&
-          hasActiveFilters ? (
-            <div className="rounded-2xl border border-dashed border-zinc-300 bg-white px-6 py-12 text-center">
-              <h3 className="text-lg font-semibold text-zinc-900">
-                No matching results
-              </h3>
-
-              <p className="mt-2 text-sm text-zinc-500">
-                Try a different search or change your filters.
-              </p>
-
-              <button
-                type="button"
-                onClick={clearFilters}
-                className="mt-5 rounded-lg bg-zinc-900 px-5 py-2 text-sm font-medium text-white hover:bg-zinc-700"
-              >
-                Clear filters
-              </button>
-            </div>
-          ) : (
-            <MatchList
-              matches={filteredMatches}
-              onDismiss={handleDismiss}
-              onViewProfile={handleViewProfile}
+    <>
+      <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+        <div className="grid gap-4 md:grid-cols-2">
+          <div>
+            <label
+              htmlFor="match-search"
+              className="mb-2 block text-sm font-medium text-zinc-700"
+            >
+              Search matches
+            </label>
+            <input
+              id="match-search"
+              type="search"
+              value={search}
+              onChange={(event) =>
+                setSearch(event.target.value)
+              }
+              placeholder="Search by name or skill..."
+              className="w-full rounded-lg border border-zinc-300 px-4 py-2.5 text-sm outline-none focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200"
             />
+          </div>
+
+          <div>
+            <label
+              htmlFor="match-sort"
+              className="mb-2 block text-sm font-medium text-zinc-700"
+            >
+              Sort by
+            </label>
+            <select
+              id="match-sort"
+              value={sortBy}
+              onChange={(event) =>
+                setSortBy(event.target.value as SortOption)
+              }
+              className="w-full rounded-lg border border-zinc-300 bg-white px-4 py-2.5 text-sm outline-none focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200"
+            >
+              <option value="highest">Highest match score</option>
+              <option value="lowest">Lowest match score</option>
+              <option value="name">Name (A-Z)</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="mt-5">
+          <p className="mb-3 text-sm font-medium text-zinc-700">
+            Filter by match score
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {(
+              [
+                { value: "all", label: "All matches" },
+                { value: "90", label: "90% and above" },
+                { value: "80", label: "80% and above" },
+              ] as const
+            ).map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => setScoreFilter(option.value)}
+                aria-pressed={scoreFilter === option.value}
+                className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+                  scoreFilter === option.value
+                    ? "bg-zinc-900 text-white"
+                    : "bg-zinc-100 text-zinc-700 hover:bg-zinc-200"
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="mt-8">
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-xl font-bold text-zinc-900">
+              Recommended for you
+            </h2>
+            <p className="mt-1 text-sm text-zinc-500">
+              {filteredMatches.length}{" "}
+              {filteredMatches.length === 1
+                ? "match found"
+                : "matches found"}
+            </p>
+          </div>
+
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={clearFilters}
+              className="text-sm font-medium text-zinc-600 underline underline-offset-4"
+            >
+              Clear filters
+            </button>
           )}
-        </section>
-      </div>
+        </div>
+
+        {filteredMatches.length === 0 && hasActiveFilters ? (
+          <div className="rounded-xl border border-zinc-200 bg-white p-8 text-center">
+            <p className="font-semibold text-zinc-900">
+              No matching results
+            </p>
+            <p className="mt-2 text-sm text-zinc-500">
+              Try a different search or change your filters.
+            </p>
+          </div>
+        ) : (
+          <MatchList
+            matches={filteredMatches}
+            onViewProfile={handleViewProfile}
+          />
+        )}
+      </section>
 
       <MatchProfileModal
         match={selectedMatch}
         view={modalView}
         requestSent={selectedRequestSent}
+        isSubmitting={isSubmitting}
+        requestError={requestError}
         onClose={handleCloseModal}
         onStartRequest={handleStartRequest}
-        onBackToProfile={handleBackToProfile}
+        onBackToProfile={() => {
+          setModalView("profile");
+          setRequestError(null);
+        }}
         onSubmitRequest={handleSubmitRequest}
       />
-    </AppShell>
+    </>
   );
 }
 

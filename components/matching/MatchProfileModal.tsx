@@ -21,16 +21,20 @@ interface MatchProfileModalProps {
   match: MatchProfileDetails | null;
   view: MatchModalView;
   requestSent: boolean;
+  isSubmitting?: boolean;
+  requestError?: string | null;
   onClose: () => void;
   onStartRequest: () => void;
   onBackToProfile: () => void;
-  onSubmitRequest: (request: ExchangeRequestDraft) => void;
+  onSubmitRequest: (request: ExchangeRequestDraft) => void | Promise<void>;
 }
 
 export function MatchProfileModal({
   match,
   view,
   requestSent,
+  isSubmitting = false,
+  requestError,
   onClose,
   onStartRequest,
   onBackToProfile,
@@ -50,7 +54,7 @@ export function MatchProfileModal({
 
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
-        onClose();
+        if (!isSubmitting) onClose();
       }
 
       if (event.key !== "Tab") return;
@@ -92,7 +96,7 @@ export function MatchProfileModal({
         previousFocus.focus();
       }
     };
-  }, [match, onClose]);
+  }, [match, onClose, isSubmitting]);
 
   if (!match) return null;
 
@@ -103,7 +107,10 @@ export function MatchProfileModal({
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
       onMouseDown={(event) => {
-        if (event.target === event.currentTarget) {
+        if (
+          event.target === event.currentTarget &&
+          !isSubmitting
+        ) {
           onClose();
         }
       }}
@@ -129,8 +136,9 @@ export function MatchProfileModal({
             ref={closeButtonRef}
             type="button"
             onClick={onClose}
+            disabled={isSubmitting}
             aria-label="Close modal"
-            className="rounded-lg px-3 py-1 text-xl text-zinc-500 hover:bg-zinc-100 focus:outline-none focus:ring-2 focus:ring-zinc-400"
+            className="rounded-lg px-3 py-1 text-xl text-zinc-500 hover:bg-zinc-100 disabled:opacity-50"
           >
             ×
           </button>
@@ -142,6 +150,8 @@ export function MatchProfileModal({
             match={match}
             onBack={onBackToProfile}
             onSubmit={onSubmitRequest}
+            isSubmitting={isSubmitting}
+            error={requestError}
           />
         ) : (
           <>
@@ -162,11 +172,9 @@ export function MatchProfileModal({
                 <h3 className="truncate text-lg font-semibold text-zinc-900">
                   {match.name}
                 </h3>
-
                 <p className="text-sm text-zinc-500">
                   @{match.username}
                 </p>
-
                 {match.location && (
                   <p className="mt-1 text-sm text-zinc-500">
                     {match.location}
@@ -183,7 +191,6 @@ export function MatchProfileModal({
               <h4 className="font-semibold text-zinc-900">
                 About
               </h4>
-
               <p className="mt-2 text-sm leading-6 text-zinc-600">
                 {match.bio || "No biography added yet."}
               </p>
@@ -193,7 +200,6 @@ export function MatchProfileModal({
               <h4 className="font-semibold text-zinc-900">
                 Can teach
               </h4>
-
               <div className="mt-3 flex flex-wrap gap-2">
                 {match.teachingSkills?.length ? (
                   match.teachingSkills.map((skill) => (
@@ -216,7 +222,6 @@ export function MatchProfileModal({
               <h4 className="font-semibold text-zinc-900">
                 Wants to learn
               </h4>
-
               <div className="mt-3 flex flex-wrap gap-2">
                 {match.learningSkills?.length ? (
                   match.learningSkills.map((skill) => (
@@ -239,24 +244,20 @@ export function MatchProfileModal({
               <h4 className="font-semibold text-zinc-900">
                 Why you matched
               </h4>
-
               <p className="mt-2 text-sm leading-6 text-zinc-600">
                 {match.matchReason ||
                   "You have complementary teaching and learning interests."}
               </p>
-
-              {match.matchedSkills.length > 0 && (
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {match.matchedSkills.map((skill) => (
-                    <span
-                      key={skill}
-                      className="rounded-full border border-zinc-200 bg-white px-3 py-1 text-xs text-zinc-700"
-                    >
-                      {skill}
-                    </span>
-                  ))}
-                </div>
-              )}
+              <div className="mt-3 flex flex-wrap gap-2">
+                {match.matchedSkills.map((skill) => (
+                  <span
+                    key={skill}
+                    className="rounded-full border border-zinc-200 bg-white px-3 py-1 text-xs text-zinc-700"
+                  >
+                    {skill}
+                  </span>
+                ))}
+              </div>
             </section>
 
             {requestSent ? (
@@ -265,20 +266,19 @@ export function MatchProfileModal({
                 className="mt-6 rounded-xl bg-emerald-50 p-4"
               >
                 <p className="font-semibold text-emerald-800">
-                  Demo Request Sent!
+                  Request Sent!
                 </p>
-
                 <p className="mt-1 text-sm text-emerald-700">
-                  Your request is marked as sent in this
-                  browser session. No real request was sent.
+                  Your exchange request was submitted successfully.
+                  You can track it on the Requests page.
                 </p>
               </div>
             ) : (
               <button
                 type="button"
                 onClick={onStartRequest}
-                disabled={!match.teachingSkills?.length}
-                className="mt-6 w-full rounded-lg bg-zinc-900 px-5 py-3 text-sm font-medium text-white hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={isSubmitting}
+                className="mt-6 w-full rounded-lg bg-zinc-900 px-5 py-3 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-50"
               >
                 Send Exchange Request
               </button>
@@ -287,7 +287,8 @@ export function MatchProfileModal({
             <button
               type="button"
               onClick={onClose}
-              className="mt-3 w-full rounded-lg border border-zinc-300 px-5 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+              disabled={isSubmitting}
+              className="mt-3 w-full rounded-lg border border-zinc-300 px-5 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
             >
               Close
             </button>

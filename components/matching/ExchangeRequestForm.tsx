@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, type FormEvent } from "react";
@@ -6,43 +5,33 @@ import type { MatchProfileDetails } from "./MatchProfileModal";
 
 export interface ExchangeRequestDraft {
   matchId: string;
-  requestedSkill: string;
-  offeredSkill: string;
   message: string;
 }
 
 interface ExchangeRequestFormProps {
   match: MatchProfileDetails;
   onBack: () => void;
-  onSubmit: (request: ExchangeRequestDraft) => void;
+  onSubmit: (request: ExchangeRequestDraft) => void | Promise<void>;
+  isSubmitting?: boolean;
+  error?: string | null;
 }
 
 export function ExchangeRequestForm({
   match,
   onBack,
   onSubmit,
+  isSubmitting = false,
+  error,
 }: ExchangeRequestFormProps) {
-  const [requestedSkill, setRequestedSkill] = useState(
-    match.teachingSkills?.[0] ?? ""
-  );
-  const [offeredSkill, setOfferedSkill] = useState("");
   const [message, setMessage] = useState("");
-
-  const availableSkills = match.teachingSkills ?? [];
-
-  const canSubmit =
-    requestedSkill.trim().length > 0 &&
-    offeredSkill.trim().length > 0;
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (!canSubmit) return;
+    if (isSubmitting) return;
 
-    onSubmit({
+    void onSubmit({
       matchId: match.id,
-      requestedSkill: requestedSkill.trim(),
-      offeredSkill: offeredSkill.trim(),
       message: message.trim(),
     });
   }
@@ -55,67 +44,29 @@ export function ExchangeRequestForm({
         </h3>
 
         <p className="mt-2 text-sm text-zinc-600">
-          Tell {match.name} what you would like to learn
-          and what you can offer in return.
+          Send {match.name} an invitation to exchange skills.
         </p>
       </div>
 
-      <div>
-        <label
-          htmlFor="requested-skill"
-          className="mb-2 block text-sm font-medium text-zinc-700"
-        >
-          Skill you want to learn *
-        </label>
+      <div className="rounded-xl bg-zinc-50 p-4">
+        <p className="text-sm font-medium text-zinc-900">
+          Your matching skills
+        </p>
 
-        <select
-          id="requested-skill"
-          value={requestedSkill}
-          onChange={(event) =>
-            setRequestedSkill(event.target.value)
-          }
-          required
-          disabled={availableSkills.length === 0}
-          className="w-full rounded-lg border border-zinc-300 bg-white px-4 py-2.5 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-300 disabled:bg-zinc-100"
-        >
-          {availableSkills.length === 0 ? (
-            <option value="">
-              No teaching skills available
-            </option>
-          ) : (
-            availableSkills.map((skill) => (
-              <option key={skill} value={skill}>
-                {skill}
-              </option>
-            ))
-          )}
-        </select>
-      </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {match.matchedSkills.map((skill) => (
+            <span
+              key={skill}
+              className="rounded-full bg-white px-3 py-1 text-xs font-medium text-zinc-700"
+            >
+              {skill}
+            </span>
+          ))}
+        </div>
 
-      <div>
-        <label
-          htmlFor="offered-skill"
-          className="mb-2 block text-sm font-medium text-zinc-700"
-        >
-          Skill you can teach *
-        </label>
-
-        <input
-          id="offered-skill"
-          type="text"
-          value={offeredSkill}
-          onChange={(event) =>
-            setOfferedSkill(event.target.value)
-          }
-          placeholder="e.g. Web Development"
-          maxLength={80}
-          required
-          className="w-full rounded-lg border border-zinc-300 px-4 py-2.5 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-300"
-        />
-
-        <p className="mt-2 text-xs text-zinc-500">
-          Demo only. Your teaching skills will be
-          selected from your profile after backend integration.
+        <p className="mt-3 text-xs text-zinc-500">
+          Available skills will be verified when your
+          exchange partner accepts the request.
         </p>
       </div>
 
@@ -130,13 +81,12 @@ export function ExchangeRequestForm({
         <textarea
           id="request-message"
           value={message}
-          onChange={(event) =>
-            setMessage(event.target.value)
-          }
+          onChange={(event) => setMessage(event.target.value)}
           placeholder={`Hi ${match.name}! I'd love to exchange skills with you.`}
           rows={4}
           maxLength={500}
-          className="w-full resize-y rounded-lg border border-zinc-300 px-4 py-3 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-300"
+          disabled={isSubmitting}
+          className="w-full resize-y rounded-lg border border-zinc-300 px-4 py-3 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-300 disabled:opacity-50"
         />
 
         <p className="mt-1 text-right text-xs text-zinc-500">
@@ -144,26 +94,31 @@ export function ExchangeRequestForm({
         </p>
       </div>
 
-      <p className="rounded-lg bg-amber-50 p-3 text-xs text-amber-800">
-        Demo mode: Submitting this form will not send
-        a real request or save data to Convex.
-      </p>
+      {error && (
+        <p
+          role="alert"
+          className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700"
+        >
+          {error}
+        </p>
+      )}
 
       <div className="flex flex-col-reverse gap-3 sm:flex-row">
         <button
           type="button"
           onClick={onBack}
-          className="flex-1 rounded-lg border border-zinc-300 px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+          disabled={isSubmitting}
+          className="flex-1 rounded-lg border border-zinc-300 px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
         >
           Back to Profile
         </button>
 
         <button
           type="submit"
-          disabled={!canSubmit}
+          disabled={isSubmitting}
           className="flex-1 rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          Send Request
+          {isSubmitting ? "Sending..." : "Send Request"}
         </button>
       </div>
     </form>
