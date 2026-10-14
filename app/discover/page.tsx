@@ -15,6 +15,8 @@ import {
   type MatchModalView,
 } from "@/components/matching/MatchProfileModal";
 import type { ExchangeRequestDraft } from "@/components/matching/ExchangeRequestForm";
+import { useGenerateMatches } from "@/lib/hooks/useGenerateMatches";
+import { getErrorMessage } from "@/lib/utils/errors";
 
 type ScoreFilter = "all" | "90" | "80";
 type SortOption = "highest" | "lowest" | "name";
@@ -45,6 +47,8 @@ export default function DiscoverPage() {
 }
 
 function DiscoverContent() {
+  const generateError = useGenerateMatches();
+
   const matchesData = useQuery(
     api.matching.queries.getDiscoverMatches,
     {}
@@ -201,11 +205,7 @@ function DiscoverContent() {
       setRecentlySentId(request.matchId);
       setModalView("profile");
     } catch (err) {
-      setRequestError(
-        err instanceof Error
-          ? err.message
-          : "Could not send your request. Please try again."
-      );
+      setRequestError(getErrorMessage(err));
     } finally {
       setIsSubmitting(false);
     }
@@ -230,6 +230,15 @@ function DiscoverContent() {
 
   return (
     <>
+      {generateError && (
+        <p
+          role="alert"
+          className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+        >
+          We couldn&apos;t refresh your matches: {generateError}
+        </p>
+      )}
+
       <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
         <div className="grid gap-4 md:grid-cols-2">
           <div>

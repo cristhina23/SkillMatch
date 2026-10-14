@@ -7,6 +7,7 @@ import { api } from "@/convex/_generated/api";
 import { AppShell } from "@/components/layout/AppShell";
 import { RequireConvexAuth } from "@/components/layout/RequireConvexAuth";
 import { LoadingState } from "@/components/ui/LoadingState";
+import { useGenerateMatches } from "@/lib/hooks/useGenerateMatches";
 
 export default function DashboardPage() {
   return (
@@ -33,6 +34,9 @@ export default function DashboardPage() {
 }
 
 function DashboardContent() {
+  // Keeps the "recent matches" list below up to date.
+  useGenerateMatches();
+
   const upcoming = useQuery(
     api.sessions.queries.getUpcomingSessions
   );
