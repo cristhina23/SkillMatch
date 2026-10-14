@@ -13,7 +13,7 @@ export function Sidebar() {
   return (
     <aside className="hidden min-h-screen w-64 flex-col border-r border-zinc-200 bg-white p-6 md:flex">
       <Link
-        href="/dashboard"
+        href="/"
         className="mb-10 text-2xl font-bold text-zinc-900"
       >
         SkillMatch
