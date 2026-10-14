@@ -24,24 +24,28 @@ import {
 
 const sessionArgs = { sessionId: v.id("learningSessions") };
 
-// Lifecycle: SCHEDULED -> IN_PROGRESS -> COMPLETED; CANCELLED (before start)
+// Lifecycle: SCHEDULED -> IN_PROGRESS (once a call connects) -> COMPLETED.
+// Joining is only allowed between 10 minutes before the start and the
+// scheduled end time; CANCELLED (before start)
 // and NO_SHOW (after the grace period) only from SCHEDULED. COMPLETED,
 // CANCELLED and NO_SHOW are terminal. assertState enforces the allowed
 // source states; getSessionActions (shared with SessionActions.tsx) owns
 // the timing windows so the UI and backend can't disagree.
 
-// second participant joining an IN_PROGRESS session is a no-op
+// Called by VideoCall only after the Stream call actually connected, so a
+// failed connection leaves the session SCHEDULED and Join can be retried.
+// The second participant joining an IN_PROGRESS session is a no-op.
 export const startSession = mutation({
   args: sessionArgs,
   handler: async (ctx, args) => {
     const user = await requireUser(ctx);
     const session = await loadParticipantSession(ctx, args.sessionId, user._id);
     assertState(session.status, ["SCHEDULED", "IN_PROGRESS"]);
-    if (session.status === "IN_PROGRESS") {
-      return session._id;
-    }
     if (!getSessionActions(session, Date.now()).canJoin) {
       throw new ValidationError("This session can't be joined right now");
+    }
+    if (session.status === "IN_PROGRESS") {
+      return session._id;
     }
 
     const now = Date.now();

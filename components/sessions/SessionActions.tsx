@@ -24,7 +24,6 @@ interface SessionActionsProps {
 }
 
 export function SessionActions({ session, timeZone }: SessionActionsProps) {
-  const startSession = useMutation(api.sessions.mutations.startSession);
   const completeSession = useMutation(api.sessions.mutations.completeSession);
   const cancelSession = useMutation(api.sessions.mutations.cancelSession);
   const markNoShow = useMutation(api.sessions.mutations.markNoShow);
@@ -56,10 +55,11 @@ export function SessionActions({ session, timeZone }: SessionActionsProps) {
     }
   }
 
-  async function handleJoin() {
-    if (await run(() => startSession({ sessionId }))) {
-      setInCall(true);
-    }
+  // VideoCall marks the session as in progress after the call connects, so
+  // clicking Join alone doesn't change the session.
+  function handleJoin() {
+    setError(null);
+    setInCall(true);
   }
 
   function handleCancel() {
@@ -94,6 +94,12 @@ export function SessionActions({ session, timeZone }: SessionActionsProps) {
             minute: "2-digit",
           })}
           .
+        </p>
+      )}
+      {session.status === "IN_PROGRESS" && !actions.canJoin && (
+        <p className="max-w-sm text-sm text-zinc-500">
+          The scheduled time is over, so the call is closed. Mark the session
+          as completed when you&apos;re done.
         </p>
       )}
       {!hasAction && !waitingToJoin && (

@@ -17,10 +17,14 @@ export function getSessionActions(session: LifecycleSession, now: number) {
   const scheduled = session.status === "SCHEDULED";
   const inProgress = session.status === "IN_PROGRESS";
 
+  // The call is open from 10 minutes before the start until the scheduled
+  // end, for both SCHEDULED and IN_PROGRESS sessions. After the end time
+  // nobody can join; an IN_PROGRESS session can still be marked completed.
+  const callIsOpen = now >= joinOpensAt && now < session.endTime;
+
   return {
     joinOpensAt,
-    canJoin:
-      inProgress || (scheduled && now >= joinOpensAt && now < session.endTime),
+    canJoin: (scheduled || inProgress) && callIsOpen,
     canComplete: inProgress,
     canCancel: scheduled && now < session.startTime,
     canMarkNoShow: scheduled && now >= noShowAfter,

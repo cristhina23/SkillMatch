@@ -75,9 +75,17 @@ export function SessionDetail({ sessionId }: { sessionId: string }) {
           <dd className="font-medium">
             {formatTimeRange(session.startTime, session.endTime, viewerTimezone)}
           </dd>
+          {/* session.timezone is the time zone of whoever scheduled it. It can
+              fall on a different day, so show the date and the zone name too. */}
           {session.timezone !== viewerTimezone && (
             <dd className="text-zinc-500">
-              {formatTimeRange(session.startTime, session.endTime, session.timezone)}
+              Scheduled in {session.timezone}:{" "}
+              {formatInTimezone(session.startTime, session.timezone, {
+                weekday: "short",
+                month: "short",
+                day: "numeric",
+              })}
+              , {formatTimeRange(session.startTime, session.endTime, session.timezone)}
             </dd>
           )}
         </div>

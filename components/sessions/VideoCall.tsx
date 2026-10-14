@@ -10,7 +10,7 @@ import {
   StreamVideoClient,
   type Call,
 } from "@stream-io/video-react-sdk";
-import { useAction } from "convex/react";
+import { useAction, useMutation } from "convex/react";
 import { useEffect, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -27,6 +27,7 @@ interface VideoCallProps {
 
 export function VideoCall({ sessionId, onLeave }: VideoCallProps) {
   const getCallToken = useAction(api.sessions.stream.getCallToken);
+  const startSession = useMutation(api.sessions.mutations.startSession);
   const [connection, setConnection] = useState<{
     client: StreamVideoClient;
     call: Call;
@@ -55,10 +56,14 @@ export function VideoCall({ sessionId, onLeave }: VideoCallProps) {
         });
         call = client.call("default", access.callId);
         await call.join({ create: true });
+        // Only mark the session as in progress once the call really connected.
+        await startSession({ sessionId });
         if (!cancelled) {
           setConnection({ client, call });
         }
       } catch (err) {
+        // Leave any half-open call so the user can retry from the Join button.
+        void call?.leave().catch(() => {});
         if (!cancelled) {
           setError(getErrorMessage(err));
         }
@@ -72,7 +77,7 @@ export function VideoCall({ sessionId, onLeave }: VideoCallProps) {
       void call?.leave().catch(() => {});
       void client?.disconnectUser().catch(() => {});
     };
-  }, [getCallToken, sessionId]);
+  }, [getCallToken, startSession, sessionId]);
 
   const message = !STREAM_API_KEY ? "Video calls aren't set up yet." : error;
   if (message) {
