@@ -7,6 +7,7 @@ import { LoadingState } from "@/components/ui/LoadingState";
 import { SessionReview } from "@/components/reviews/SessionReview";
 import { SessionActions } from "@/components/sessions/SessionActions";
 import { SessionStatusBadge } from "@/components/sessions/SessionStatusBadge";
+import { getGoogleCalendarUrl } from "@/lib/utils/calendar";
 import { formatInTimezone, getBrowserTimezone } from "@/lib/utils/time";
 
 const DATE_FORMAT: Intl.DateTimeFormatOptions = {
@@ -49,6 +50,10 @@ export function SessionDetail({ sessionId }: { sessionId: string }) {
   const otherPerson =
     session.viewerRole === "TEACHER" ? session.learner : session.teacher;
   const durationMinutes = Math.round((session.endTime - session.startTime) / 60_000);
+  const skillName = session.skill?.name ?? "Learning session";
+  // This component only renders in the browser after the session loads,
+  // so window is available here.
+  const sessionUrl = `${window.location.origin}/session/${session._id}`;
 
   return (
     <div className="space-y-8">
@@ -101,6 +106,24 @@ export function SessionDetail({ sessionId }: { sessionId: string }) {
           </dd>
         </div>
       </dl>
+
+      {session.status === "SCHEDULED" && (
+        <a
+          href={getGoogleCalendarUrl({
+            title: `SkillMatch: ${skillName} with ${otherPerson?.name ?? "your partner"}`,
+            details: `SkillMatch learning session (${skillName}). Join the video call from the session page: ${sessionUrl}`,
+            location: sessionUrl,
+            start: session.startTime,
+            end: session.endTime,
+          })}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-2 rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-900 hover:bg-zinc-50"
+        >
+          Add to Google Calendar
+          <span className="sr-only">(opens in a new tab)</span>
+        </a>
+      )}
 
       {session.status === "COMPLETED" ? (
         <SessionReview
